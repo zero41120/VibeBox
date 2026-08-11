@@ -69,10 +69,10 @@
       
       <!-- Right Quick Controls -->
       <div class="flex items-center space-x-2">
-        <button id="nativeEyeBtn" title="Use System Screen Eyedropper API" class="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
-          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
-          <span>Screen Eyedropper</span>
-        </button>
+        <a href="index.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">All Tools</span>
+        </a>
       </div>
     </div>
   </header>
@@ -84,9 +84,9 @@
     <section class="lg:col-span-7 flex flex-col space-y-4">
       
       <!-- Target Color Selector Tabs -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2 flex items-center justify-between gap-2">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2 flex items-center justify-between gap-2 flex-wrap">
         <div class="text-xs text-slate-400 font-medium px-2 hidden sm:block">Active Eyedropper Target:</div>
-        <div class="grid grid-cols-2 gap-2 flex-1">
+        <div class="grid grid-cols-2 gap-2 flex-1 min-w-[220px]">
           <button id="targetTextBtn" onclick="setActiveTarget('text')" class="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all border border-indigo-500 bg-indigo-600/20 text-indigo-300">
             <span class="w-3 h-3 rounded-full border border-white/20 shadow-sm" id="textTargetDot" style="background-color: #FFFFFF;"></span>
             <span>Text Color</span>
@@ -98,6 +98,10 @@
             <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-700 text-slate-400 ml-auto hidden md:inline">Inactive</span>
           </button>
         </div>
+        <button id="nativeEyeBtn" title="Use System Screen Eyedropper API" class="hidden sm:inline-flex items-center gap-2 px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>Screen Eyedropper</span>
+        </button>
       </div>
 
       <!-- Canvas Card Workspace -->
