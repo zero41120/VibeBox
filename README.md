@@ -12,6 +12,7 @@ Every tool is a single self-contained static HTML file — no build step, no ins
 | --- | --- |
 | [WCAG Color Contrast Checker](wcag_contrast_eyedropper_tool.html) | Pick colors from any image with an eyedropper and check WCAG 2.1 contrast compliance in real time. |
 | [Region Average Color Picker](region_average_color_picker.html) | Pan & zoom any image with [OpenSeadragon](https://openseadragon.github.io/), draw a rectangle or freehand region, and get its average color. |
+| [Palette Maker](palette_maker.html) | Build, randomize, and extract color palettes from images, then save, share via URL, and export a palette card PNG. |
 
 Browse them all from the [index page](index.html), which lists every tool with a short description and a link to open it.
 
