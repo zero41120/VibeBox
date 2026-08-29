@@ -1,0 +1,2905 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full bg-slate-950 text-slate-100">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Palette Maker</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Inter & JetBrains Mono Fonts -->
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600&display=swap" />
+  <!-- Coloris color picker -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/mdbassit/Coloris@latest/dist/coloris.min.css" />
+  <script src="https://cdn.jsdelivr.net/gh/mdbassit/Coloris@latest/dist/coloris.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0b0f19;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+
+    /* Smooth, touch-friendly palette sorting. */
+    .swatch-card {
+      will-change: transform;
+    }
+
+    .swatch-card + .swatch-card {
+      margin-left: -1px;
+    }
+
+    .swatch-drag-surface {
+      touch-action: none;
+      cursor: grab;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .swatch-drag-surface:active {
+      cursor: grabbing;
+    }
+
+    .swatch-card.is-dragging {
+      position: fixed;
+      z-index: 100;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: 16px;
+      transition: box-shadow 220ms ease, filter 220ms ease !important;
+      box-shadow:
+        0 28px 60px rgba(0, 0, 0, 0.48),
+        0 8px 22px rgba(0, 0, 0, 0.34),
+        0 0 0 1px rgba(255, 255, 255, 0.14);
+      filter: saturate(1.08) brightness(1.04);
+    }
+
+    .swatch-drop-slot {
+      position: relative;
+      flex: 0 0 auto;
+      min-width: 0;
+      height: 100%;
+      background: rgba(99, 102, 241, 0.08);
+      box-shadow: inset 0 0 0 2px rgba(129, 140, 248, 0.48);
+      overflow: hidden;
+    }
+
+    .swatch-drop-slot::after {
+      content: '';
+      position: absolute;
+      inset: 10px;
+      border-radius: 12px;
+      background: rgba(129, 140, 248, 0.1);
+      animation: swatch-slot-pulse 1.15s ease-in-out infinite alternate;
+    }
+
+    #swatchGrid.is-sorting {
+      cursor: grabbing;
+      scroll-behavior: auto;
+    }
+
+    /* The large swatch is already the color preview; hide Coloris's inline chip. */
+    .swatch-card .clr-field {
+      flex: 1 1 0%;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .swatch-card .clr-field button {
+      display: none;
+    }
+
+    .swatch-card .clr-field input {
+      width: 100%;
+      padding-right: 0.25rem !important;
+    }
+
+    @keyframes swatch-slot-pulse {
+      from {
+        opacity: 0.45;
+        transform: scale(0.97);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+
+      .swatch-drop-slot::after {
+        animation: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body class="h-full font-sans antialiased bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
+
+  <!-- Header Section -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30 flex-none">
+    <div class="w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+          <i data-lucide="palette" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-white tracking-tight leading-tight">Palette Maker</h1>
+          <p class="text-xs text-slate-400 leading-none">Build, extract, save, and share custom color palettes.</p>
+        </div>
+      </div>
+      <a href="index.html"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">All Tools</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Full-Screen 3-Column Layout -->
+  <main
+    class="flex-1 w-full min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+
+    <!-- Column 1: Image Extractor & Workspace (Persistent at Left/Bottom) -->
+    <section
+      class="lg:col-span-4 2xl:col-span-4 3xl:col-span-3 flex flex-col min-h-0 bg-slate-950 overflow-hidden order-3 lg:order-1">
+      <!-- Panel Header & Primary File Controls -->
+      <div class="p-3 border-b border-slate-800 bg-slate-900/70 flex flex-col gap-2 flex-none">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="image-plus" class="w-4 h-4 text-indigo-400"></i>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-200">Image Extractor</span>
+          </div>
+          <span id="imgDimensionsLabel" class="font-mono text-[11px] text-slate-500"></span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label for="imgFileInput"
+            class="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shadow-sm">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i><span>Upload</span>
+          </label>
+          <input type="file" id="imgFileInput" accept="image/*" class="hidden" />
+
+          <button id="imgSampleBtn"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+            <i data-lucide="image" class="w-3.5 h-3.5"></i><span>Sample</span>
+          </button>
+
+          <div class="relative flex-1 min-w-0 flex items-center gap-1">
+            <div class="relative flex-1 min-w-0">
+              <i data-lucide="link" class="w-3 h-3 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+              <input type="text" id="imgUrlInput" placeholder="Paste image URL..."
+                class="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:border-indigo-500" />
+            </div>
+            <button id="imgLoadUrlBtn"
+              class="inline-flex items-center px-2 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">Load</button>
+          </div>
+
+          <button id="imgRemoveBtn"
+            class="hidden p-1.5 bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-900 rounded-lg transition"
+            title="Remove image">
+            <i data-lucide="image-off" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Canvas / Viewport Toolbar -->
+      <div
+        class="px-3 py-1.5 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between gap-1 flex-none">
+        <div class="flex items-center gap-1">
+          <button id="imgPanModeBtn" title="Pan & Zoom mode"
+            class="region-mode-btn inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border">
+            <i data-lucide="hand" class="w-3.5 h-3.5"></i><span>Pan</span>
+          </button>
+          <button id="imgPointModeBtn" title="Point Picker (Siphon): Click anywhere on image to pick single pixel color"
+            disabled
+            class="region-mode-btn inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="pipette" class="w-3.5 h-3.5"></i><span>Point</span>
+          </button>
+          <button id="imgAddRegionModeBtn" title="Regional Average: Draw rectangles to extract average colors" disabled
+            class="region-mode-btn inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="square-plus" class="w-3.5 h-3.5"></i><span>Area Avg</span>
+          </button>
+          <button id="imgEyeDropperBtn" title="Screen EyeDropper: Pick color from anywhere on screen"
+            class="hidden inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold transition-all border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300">
+            <i data-lucide="eye-dropper" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Screen</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <button id="imgRedrawBtn" disabled title="Redraw selected region" aria-label="Redraw selected region"
+            class="p-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="imgDeleteRegionBtn" disabled title="Delete selected region" aria-label="Delete selected region"
+            class="p-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="imgClearRegionsBtn" title="Clear all regions" aria-label="Clear all regions"
+            class="p-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition">
+            <i data-lucide="eraser" class="w-3.5 h-3.5"></i>
+          </button>
+          <div class="h-4 w-px bg-slate-800 mx-0.5"></div>
+          <button id="imgZoomOutBtn" title="Zoom out"
+            class="p-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition"><i
+              data-lucide="zoom-out" class="w-3.5 h-3.5"></i></button>
+          <button id="imgZoomInBtn" title="Zoom in"
+            class="p-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition"><i
+              data-lucide="zoom-in" class="w-3.5 h-3.5"></i></button>
+          <button id="imgResetViewBtn" title="Fit to screen"
+            class="p-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition"><i
+              data-lucide="maximize" class="w-3.5 h-3.5"></i></button>
+        </div>
+      </div>
+
+      <!-- Viewport Stage -->
+      <div id="imgViewerContainer" class="relative flex-1 min-h-[220px] select-none bg-slate-950">
+        <div id="osdViewer" class="absolute inset-0 bg-slate-950"></div>
+        <canvas id="imgOverlayCanvas" class="absolute inset-0 pointer-events-none"></canvas>
+
+        <div id="imgEmptyState"
+          class="absolute inset-0 flex flex-col items-center justify-center text-center p-4 pointer-events-none">
+          <i data-lucide="image" class="w-8 h-8 text-slate-700 mb-2"></i>
+          <p class="text-xs font-semibold text-slate-400">No image loaded</p>
+          <p class="text-[11px] text-slate-600 mt-1 max-w-[200px]">Upload, drop, paste, or load a sample image to
+            extract colors.</p>
+        </div>
+
+        <div id="imgDropPrompt"
+          class="hidden absolute inset-0 bg-indigo-950/80 backdrop-blur-sm border-2 border-dashed border-indigo-400 rounded-none flex flex-col items-center justify-center text-center p-4 z-20">
+          <i data-lucide="file-up" class="w-8 h-8 text-indigo-300 mb-1 animate-bounce"></i>
+          <p class="text-xs font-semibold text-white">Drop your image here</p>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div
+        class="px-3 py-1.5 border-t border-slate-800 bg-slate-900/60 flex items-center justify-between text-[11px] text-slate-400 flex-none">
+        <span id="imgModeHint" class="flex items-center gap-1.5">
+          <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-indigo-400"></i>
+          Drag to pan, scroll to zoom.
+        </span>
+      </div>
+    </section>
+
+    <!-- Column 2: Palette Workspace & Swatch Grid -->
+    <section
+      class="lg:col-span-5 2xl:col-span-5 3xl:col-span-6 flex flex-col min-h-0 bg-slate-900/30 overflow-hidden order-1 lg:order-2">
+      <!-- Toolbar Header -->
+      <div
+        class="p-3 border-b border-slate-800 bg-slate-900/70 flex flex-wrap items-center justify-between gap-2 flex-none">
+        <div class="relative flex-1 min-w-[160px]">
+          <i data-lucide="type" class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+          <input type="text" id="paletteNameInput" maxlength="60" placeholder="Untitled Palette"
+            class="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg pl-8 pr-2 py-1.5 focus:outline-none focus:border-indigo-500" />
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button id="savePaletteBtn" title="Save palette to this browser"
+            class="inline-flex items-center justify-center w-[36px] sm:w-[88px] flex-none gap-1 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="save" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Save</span>
+          </button>
+
+          <button id="exportCardBtn" title="Preview and export palette card" aria-haspopup="dialog"
+            class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Export</span>
+          </button>
+
+          <button id="sharePaletteBtn" title="Copy share link"
+            class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="link" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <div class="relative" id="copyMenuWrap">
+            <button id="copyMenuBtn" title="Copy palette formats"
+              class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+              <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i>
+              <i data-lucide="chevron-down" class="w-3 h-3"></i>
+            </button>
+            <div id="copyMenu" role="menu"
+              class="hidden absolute right-0 mt-1 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-xl py-1 z-40">
+              <button id="copyAllBtn" role="menuitem"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
+                <i data-lucide="list" class="w-3.5 h-3.5 text-slate-500"></i> Copy all colors
+              </button>
+              <button id="copyCssVarsBtn" role="menuitem"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
+                <i data-lucide="braces" class="w-3.5 h-3.5 text-slate-500"></i> Copy CSS vars
+              </button>
+              <button id="copyGradientBtn" role="menuitem"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
+                <i data-lucide="paint-bucket" class="w-3.5 h-3.5 text-slate-500"></i> Copy gradient
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Format & Capacity Meta Bar -->
+      <div
+        class="px-3.5 py-2 border-b border-slate-800 bg-slate-900/30 flex items-center justify-between gap-2 flex-wrap flex-none">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Format</span>
+          <div id="formatSelector" class="inline-flex rounded-lg border border-slate-700 overflow-hidden" role="group">
+            <button class="format-btn px-2.5 py-0.5 text-[11px] font-semibold transition-all"
+              data-format="hex">HEX</button>
+            <button class="format-btn px-2.5 py-0.5 text-[11px] font-semibold transition-all border-l border-slate-700"
+              data-format="rgb">RGB</button>
+            <button class="format-btn px-2.5 py-0.5 text-[11px] font-semibold transition-all border-l border-slate-700"
+              data-format="hsl">HSL</button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <span id="colorCountLabel" class="text-[11px] font-mono text-slate-400"></span>
+        </div>
+      </div>
+
+      <!-- Main Workspace Container -->
+      <div class="flex-1 flex flex-col min-h-0 p-4 space-y-4 overflow-hidden">
+        <!-- Active Palette Swatch Card Area -->
+        <div class="flex-none space-y-2.5">
+          <div id="swatchGrid"
+            class="w-full flex rounded-2xl overflow-x-auto border border-slate-800 bg-slate-950 min-h-[260px] sm:min-h-[290px] lg:min-h-[310px] shadow-xl relative">
+          </div>
+
+          <!-- Palette Swatch Actions Bar (Bottom of Color Palette Section) -->
+          <div class="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+            <button id="addColorBtn" title="Add a color to palette"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>Add Color</span>
+            </button>
+
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <button id="removeNonPickedBtn" title="Remove all non-sampled colors (keep only image-picked colors)"
+                class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                <i data-lucide="filter-x" class="w-3 h-3 text-rose-400"></i>
+                <span>Remove Non-Picked</span>
+              </button>
+              <button id="removePickedBtn" title="Remove all image-sampled colors (keep only manual colors)"
+                class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                <i data-lucide="crop" class="w-3 h-3 text-amber-400"></i>
+                <span>Remove Picked</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Saved Palettes Library Section Inside Column 2 (Independently Scrollable Section) -->
+        <div class="flex-1 min-h-0 flex flex-col border-t border-slate-800 pt-3 space-y-2.5 overflow-hidden">
+          <div class="flex items-center justify-between gap-2 flex-wrap flex-none">
+            <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="bookmark" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <span>Saved in Browser</span>
+            </h2>
+            <div class="flex items-center gap-1.5">
+              <button id="removeAllSavedBtn" title="Remove all saved palettes from browser"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 border border-slate-700 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+                <i data-lucide="trash-2" class="w-3 h-3 text-rose-400"></i>
+                <span>Clear All</span>
+              </button>
+              <button id="createNewBtn" title="Reset workspace and start a new palette"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shadow-sm">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>Create New</span>
+              </button>
+            </div>
+          </div>
+          <p id="libraryEmpty" class="text-xs text-slate-500 leading-relaxed flex-none">
+            No saved palettes yet. Click <span class="text-slate-300 font-medium">Save</span> to preserve a palette locally.
+          </p>
+          <div id="libraryList" class="hidden flex-1 min-h-0 max-h-[260px] lg:max-h-none overflow-y-auto grid [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] gap-2.5 auto-rows-max pr-1">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Column 3: Live Preview Inspector -->
+    <section class="lg:col-span-3 flex flex-col min-h-0 bg-slate-950 overflow-y-auto p-4 space-y-4 order-2 lg:order-3">
+      <!-- Mini UI Simulator -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 shadow-md space-y-3 flex-none">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="monitor" class="w-3.5 h-3.5 text-indigo-400"></i>
+            <span>UI Mockup</span>
+          </h2>
+          <span id="previewUsingSixNote" class="hidden text-[10px] text-slate-500">First 6 colors</span>
+        </div>
+
+        <div id="lowContrastNotice"
+          class="hidden items-start gap-1.5 text-[10px] text-amber-300 bg-amber-950/40 border border-amber-900/60 rounded-md p-2">
+          <i data-lucide="alert-triangle" class="w-3 h-3 flex-shrink-0 mt-0.5"></i>
+          <span>Low contrast detected. Black/white fallback text applied for preview readability.</span>
+        </div>
+
+        <div id="websiteMock" class="rounded-lg overflow-hidden border border-slate-800 shadow-sm select-none"
+          aria-hidden="true" tabindex="-1"></div>
+
+        <div id="roleLegend" class="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-400"></div>
+      </div>
+
+      <!-- Usage Tips -->
+      <div class="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 text-[11px] text-slate-400 space-y-1.5">
+        <div class="font-semibold text-slate-300 flex items-center gap-1">
+          <i data-lucide="info" class="w-3 h-3 text-indigo-400"></i> Keyboard &amp; Gestures
+        </div>
+        <p class="leading-relaxed">Draw over any loaded image on the left to extract colors. Drag swatches to reorder them.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Palette Card Preview Modal -->
+  <div id="cardModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-sm overflow-y-auto"
+    role="dialog" aria-modal="true" aria-labelledby="cardModalTitle">
+    <div id="cardModalPanel"
+      class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl lg:max-w-5xl p-4 sm:p-6 space-y-4 my-auto">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h3 id="cardModalTitle" class="text-base font-bold text-slate-100">Palette Card Preview</h3>
+          <p class="text-xs text-slate-400 mt-0.5">PNG export · 1620 × 960 HD</p>
+        </div>
+        <button id="closeCardModalBtn" aria-label="Close preview"
+          class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div
+        class="flex items-center justify-center bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-5 shadow-inner">
+        <canvas id="cardCanvasModal" width="1620" height="960" class="rounded-lg max-w-full h-auto shadow-2xl"></canvas>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <div class="inline-flex rounded-xl border border-slate-700 bg-slate-950 p-1" role="group"
+          aria-label="PNG theme">
+          <button id="cardThemeDarkBtn" type="button" aria-pressed="false"
+            class="card-theme-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition">
+            <i data-lucide="moon" class="w-3.5 h-3.5"></i> Dark
+          </button>
+          <button id="cardThemeLightBtn" type="button" aria-pressed="true"
+            class="card-theme-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition">
+            <i data-lucide="sun" class="w-3.5 h-3.5"></i> White
+          </button>
+        </div>
+        <button id="modalDownloadBtn"
+          class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition shadow-md">
+          <i data-lucide="download" class="w-4 h-4"></i> Download PNG
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <script>
+    // ==================================================================
+    // Constants & State
+    // ==================================================================
+    const MAX_COLORS = 10;
+    const MIN_COLORS = 0;
+
+    const DEFAULT_PALETTE = {
+      name: 'Ocean Evening',
+      colors: ['#0F172A', '#1E3A8A', '#2563EB', '#38BDF8', '#E0F2FE'],
+    };
+
+    let state = {
+      name: DEFAULT_PALETTE.name,
+      colors: DEFAULT_PALETTE.colors.map(hex => makeColor(hex)),
+      displayFormat: 'hex',
+      activeSavedId: null,
+      regions: [],
+    };
+
+    let library = [];
+
+    // ==================================================================
+    // Local storage
+    // ==================================================================
+    const DRAFT_KEY = 'vibebox.paletteMaker.draft.v1';
+    const LIBRARY_KEY = 'vibebox.paletteMaker.library.v1';
+    const PREFS_KEY = 'vibebox.paletteMaker.preferences.v1';
+
+    function readJSON(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function writeJSON(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function validateColorList(colors) {
+      if (!Array.isArray(colors)) return null;
+      const normalized = colors.map(normalizeHex).filter(Boolean);
+      const unique = Array.from(new Set(normalized));
+      if (unique.length < MIN_COLORS || unique.length > MAX_COLORS) return null;
+      return unique;
+    }
+
+    function validateName(name) {
+      if (typeof name !== 'string') return 'Untitled Palette';
+      const trimmed = name.trim().slice(0, 60);
+      return trimmed || 'Untitled Palette';
+    }
+
+    function loadDraft() {
+      const draft = readJSON(DRAFT_KEY);
+      if (!draft) return null;
+      const colors = validateColorList(draft.colors);
+      if (!colors) return null;
+      return { name: validateName(draft.name), colors };
+    }
+
+    function saveDraft() {
+      writeJSON(DRAFT_KEY, { name: state.name, colors: state.colors.map(c => c.hex) });
+    }
+
+    function loadLibrary() {
+      const raw = readJSON(LIBRARY_KEY);
+      if (!Array.isArray(raw)) {
+        if (raw !== null) showToast('Saved palette library could not be read and was reset.', 'warning');
+        return [];
+      }
+      let dropped = false;
+      const cleaned = raw.filter(entry => {
+        const ok = entry && typeof entry.id === 'string' && typeof entry.name === 'string' &&
+          validateColorList(entry.colors) && typeof entry.createdAt === 'string' && typeof entry.updatedAt === 'string';
+        if (!ok) dropped = true;
+        return ok;
+      }).map(entry => ({ ...entry, name: validateName(entry.name), colors: validateColorList(entry.colors) }));
+      if (dropped) showToast('Some saved palettes were corrupted and were skipped.', 'warning');
+      return cleaned;
+    }
+
+    function persistLibrary() {
+      const ok = writeJSON(LIBRARY_KEY, library);
+      if (!ok) showToast('Could not save — browser storage is full or unavailable.', 'error');
+      return ok;
+    }
+
+    function loadPreferences() {
+      const prefs = readJSON(PREFS_KEY);
+      if (prefs && ['hex', 'rgb', 'hsl'].includes(prefs.displayFormat)) {
+        state.displayFormat = prefs.displayFormat;
+      }
+    }
+
+    function savePreferences() {
+      writeJSON(PREFS_KEY, { displayFormat: state.displayFormat });
+    }
+
+    // ==================================================================
+    // Shareable URL
+    // ==================================================================
+    const SHARE_PAYLOAD_MAX_LEN = 4000;
+
+    function encodePayload(obj) {
+      const bytes = new TextEncoder().encode(JSON.stringify(obj));
+      let binary = '';
+      bytes.forEach(b => binary += String.fromCharCode(b));
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function decodePayload(str) {
+      let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return JSON.parse(new TextDecoder().decode(bytes));
+    }
+
+    function buildShareUrl() {
+      const payload = { v: 1, n: state.name, c: state.colors.map(c => c.hex.replace('#', '')) };
+      const url = new URL(location.href);
+      url.hash = 'p=' + encodePayload(payload);
+      return url.toString();
+    }
+
+    function loadFromUrlHash() {
+      const m = location.hash.match(/^#p=(.+)$/);
+      if (!m) return null;
+      if (m[1].length > SHARE_PAYLOAD_MAX_LEN) return { ok: false };
+      try {
+        const payload = decodePayload(m[1]);
+        if (!payload || payload.v !== 1 || typeof payload.n !== 'string') return { ok: false };
+        const colors = validateColorList((Array.isArray(payload.c) ? payload.c : []).map(h => '#' + h));
+        if (!colors) return { ok: false };
+        return { ok: true, name: validateName(payload.n), colors };
+      } catch (e) {
+        return { ok: false };
+      }
+    }
+
+    // ==================================================================
+    // Palette Card Renderer
+    // ==================================================================
+    const CARD_W = 540, CARD_H = 320;
+
+    function slugify(name) {
+      const s = String(name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      return s || 'untitled';
+    }
+
+    function cardGridLayout(count) {
+      return { cols: count, rows: 1 };
+    }
+
+    function roundRectPath(ctx, x, y, w, h, r) {
+      if (w <= 0 || h <= 0) return;
+      r = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    let cardTheme = 'light';
+
+    function drawPaletteCard(canvas, name, colors, scale = 3, themeName = cardTheme) {
+      canvas.width = CARD_W * scale;
+      canvas.height = CARD_H * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.clearRect(0, 0, CARD_W, CARD_H);
+
+      const isDark = themeName === 'dark';
+      const theme = isDark ? {
+        background: '#0B0F19',
+        bgGradTop: '#0F172A',
+        bgGradBottom: '#070A12',
+        textPrimary: '#F8FAFC',
+        textMuted: '#94A3B8',
+        textSubtle: '#64748B',
+        border: 'rgba(255, 255, 255, 0.1)',
+        pillBg: 'rgba(255, 255, 255, 0.07)',
+        pillBorder: 'rgba(255, 255, 255, 0.12)',
+        swatchBorder: 'rgba(255, 255, 255, 0.14)'
+      } : {
+        background: '#FFFFFF',
+        bgGradTop: '#FFFFFF',
+        bgGradBottom: '#F8FAFC',
+        textPrimary: '#0F172A',
+        textMuted: '#475569',
+        textSubtle: '#64748B',
+        border: 'rgba(15, 23, 42, 0.09)',
+        pillBg: 'rgba(15, 23, 42, 0.04)',
+        pillBorder: 'rgba(15, 23, 42, 0.08)',
+        swatchBorder: 'rgba(15, 23, 42, 0.08)'
+      };
+
+      // Outer Background fill & subtle linear gradient depth
+      const grad = ctx.createLinearGradient(0, 0, 0, CARD_H);
+      grad.addColorStop(0, theme.bgGradTop);
+      grad.addColorStop(1, theme.bgGradBottom);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+      // Outer border line
+      ctx.strokeStyle = theme.border;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, CARD_W - 1, CARD_H - 1);
+
+      const padding = 24;
+
+      // --- Palette Title (Placed cleanly at top) ---
+      const titleY = 40;
+      ctx.fillStyle = theme.textPrimary;
+      ctx.font = "700 26px 'Inter', -apple-system, sans-serif";
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+
+      const fallbackName = 'Untitled Palette';
+      let displayName = name && name.trim() ? name.trim() : fallbackName;
+      const maxTitleW = CARD_W - padding * 2;
+      if (ctx.measureText(displayName).width > maxTitleW) {
+        while (displayName.length > 1 && ctx.measureText(displayName + '…').width > maxTitleW) {
+          displayName = displayName.slice(0, -1);
+        }
+        displayName += '…';
+      }
+      ctx.fillText(displayName, padding, titleY);
+
+      // --- Swatches Section ---
+      const gridTop = 68;
+      const gridW = CARD_W - padding * 2;
+      const gridH = 208;
+
+      if (colors.length === 0) {
+        roundRectPath(ctx, padding, gridTop, gridW, gridH, 14);
+        ctx.fillStyle = theme.pillBg;
+        ctx.fill();
+        ctx.strokeStyle = theme.border;
+        ctx.stroke();
+        ctx.fillStyle = theme.textSubtle;
+        ctx.font = "500 13px 'Inter', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('No colors in palette', CARD_W / 2, gridTop + gridH / 2);
+      } else {
+        const cols = colors.length;
+        const gap = Math.max(4, Math.min(8, Math.floor(60 / cols)));
+        const blockW = (gridW - gap * (cols - 1)) / cols;
+        const blockH = gridH;
+        const radius = Math.min(14, blockW / 4, blockH / 4);
+
+        colors.forEach((hex, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = padding + col * (blockW + gap);
+          const y = gridTop + row * (blockH + gap);
+
+          // Swatch Card Base Color Fill
+          roundRectPath(ctx, x, y, blockW, blockH, radius);
+          ctx.fillStyle = hex;
+          ctx.fill();
+
+          // Swatch Border
+          roundRectPath(ctx, x, y, blockW, blockH, radius);
+          ctx.strokeStyle = theme.swatchBorder;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+
+          // HEX Code Pill Badge at bottom of swatch
+          const label = hex.toUpperCase();
+          const txtColor = readableTextColor(hex);
+          const isLightTxt = txtColor === '#F8FAFC';
+
+          // Auto calculate max font size for label inside block
+          let fontSize = cols <= 6 ? 11 : (cols <= 8 ? 9.5 : 8.5);
+          ctx.font = `600 ${fontSize}px 'JetBrains Mono', monospace`;
+          const maxLabelW = blockW - 6;
+
+          while (fontSize > 6.5 && ctx.measureText(label).width > maxLabelW) {
+            fontSize -= 0.5;
+            ctx.font = `600 ${fontSize}px 'JetBrains Mono', monospace`;
+          }
+
+          const labelW = ctx.measureText(label).width;
+          const hexPillW = Math.min(blockW - 6, labelW + 14);
+
+          if (blockH >= 20 && hexPillW >= 18) {
+            const hexPillH = Math.min(24, Math.max(16, blockH * 0.2));
+            const hexPillX = x + (blockW - hexPillW) / 2;
+            const hexPillY = y + blockH - hexPillH - Math.max(4, Math.min(10, blockH * 0.06));
+
+            roundRectPath(ctx, hexPillX, hexPillY, hexPillW, hexPillH, hexPillH / 2);
+            ctx.fillStyle = isLightTxt ? 'rgba(0, 0, 0, 0.38)' : 'rgba(255, 255, 255, 0.85)';
+            ctx.fill();
+
+            ctx.strokeStyle = isLightTxt ? 'rgba(255, 255, 255, 0.22)' : 'rgba(15, 23, 42, 0.15)';
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+
+            ctx.fillStyle = isLightTxt ? '#FFFFFF' : '#0F172A';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `600 ${fontSize}px 'JetBrains Mono', monospace`;
+            ctx.fillText(label, x + blockW / 2, hexPillY + hexPillH / 2 + 0.5);
+          }
+        });
+      }
+
+      // --- Footer ---
+      const footerY = CARD_H - 16;
+
+      // Left Footer Brand
+      ctx.fillStyle = theme.textSubtle;
+      ctx.font = "600 9px 'Inter', sans-serif";
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+
+      const iconX = padding;
+      const iconY = footerY;
+      const colorsList = ['#6366F1', '#EC4899', '#3B82F6'];
+      colorsList.forEach((c, idx) => {
+        ctx.beginPath();
+        ctx.arc(iconX + idx * 6, iconY, 2, 0, Math.PI * 2);
+        ctx.fillStyle = c;
+        ctx.fill();
+      });
+
+      ctx.fillStyle = theme.textSubtle;
+      ctx.fillText('MADE WITH ZERO41120.GITHUB.IO/VIBEBOX', iconX + 22, footerY);
+
+      // Right Footer Tool Name
+      ctx.textAlign = 'right';
+      ctx.fillText('PALETTE MAKER', CARD_W - padding, footerY);
+    }
+
+    function exportCardBlob(callback) {
+      const exportCanvas = document.createElement('canvas');
+      drawPaletteCard(exportCanvas, state.name, state.colors.map(c => c.hex), 3, cardTheme);
+      exportCanvas.toBlob((blob) => {
+        if (!blob) {
+          showToast('Could not generate the palette card image.', 'error');
+          return;
+        }
+        callback(blob);
+      }, 'image/png');
+    }
+
+    function downloadCardPng() {
+      exportCardBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${slugify(state.name)}-palette.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('Palette card downloaded (1620x960 HD)', 'success');
+      });
+    }
+
+    let cardModalTrigger = null;
+    function renderCardThemeControls() {
+      document.querySelectorAll('.card-theme-btn').forEach(btn => {
+        const active = btn.id === (cardTheme === 'dark' ? 'cardThemeDarkBtn' : 'cardThemeLightBtn');
+        btn.setAttribute('aria-pressed', String(active));
+        btn.classList.toggle('bg-slate-700', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('shadow-sm', active);
+        btn.classList.toggle('text-slate-400', !active);
+        btn.classList.toggle('hover:text-slate-200', !active);
+      });
+    }
+
+    function setCardTheme(themeName) {
+      cardTheme = themeName;
+      renderCardThemeControls();
+      drawPaletteCard(document.getElementById('cardCanvasModal'), state.name, state.colors.map(c => c.hex), 4, cardTheme);
+    }
+
+    function openCardModal(trigger) {
+      cardModalTrigger = trigger || null;
+      renderCardThemeControls();
+      drawPaletteCard(document.getElementById('cardCanvasModal'), state.name, state.colors.map(c => c.hex), 4, cardTheme);
+      const modal = document.getElementById('cardModal');
+      modal.classList.remove('hidden');
+      document.getElementById('closeCardModalBtn').focus();
+    }
+    function closeCardModal() {
+      document.getElementById('cardModal').classList.add('hidden');
+      if (cardModalTrigger) cardModalTrigger.focus();
+    }
+
+    // ==================================================================
+    // Mini Website Palette Preview
+    // ==================================================================
+    function mixHex(hexA, hexB, amount) {
+      const a = hexToRgb(hexA), b = hexToRgb(hexB);
+      return rgbToHex(
+        a.r + (b.r - a.r) * amount,
+        a.g + (b.g - a.g) * amount,
+        a.b + (b.b - a.b) * amount
+      );
+    }
+
+    function contrastRatio(hexA, hexB) {
+      const l1 = relativeLuminance(hexA), l2 = relativeLuminance(hexB);
+      const lighter = Math.max(l1, l2), darker = Math.min(l1, l2);
+      return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    function pickTextColor(bgHex, candidates) {
+      let best = null, bestRatio = 0;
+      for (const c of candidates) {
+        if (!c) continue;
+        const r = contrastRatio(bgHex, c);
+        if (r > bestRatio) { bestRatio = r; best = c; }
+      }
+      const READABLE_THRESHOLD = 3;
+      if (best && bestRatio >= READABLE_THRESHOLD) return { color: best, low: false };
+      const white = '#FFFFFF', black = '#000000';
+      const useWhite = contrastRatio(bgHex, white) >= contrastRatio(bgHex, black);
+      return { color: useWhite ? white : black, low: true };
+    }
+
+    const PREVIEW_ROLE_NAMES = ['Background', 'Surface', 'Primary Accent', 'Secondary Accent', 'Main Text', 'Muted Text'];
+
+    function computePreviewTheme(hexColors) {
+      const avail = hexColors.length > 0 ? hexColors.slice(0, 6) : ['#0F172A', '#1E293B', '#3B82F6', '#6366F1', '#F8FAFC', '#94A3B8'];
+      const bg = avail[0];
+      const surface = avail[1] || mixHex(bg, '#FFFFFF', 0.08);
+      const primary = avail[2] || avail[avail.length - 1];
+      const secondary = avail[3] || primary;
+      const textCandidates = [avail[4], avail[5], avail[3], avail[2], avail[1]].filter(Boolean);
+
+      const bodyText = pickTextColor(bg, textCandidates);
+      const headerText = pickTextColor(surface, textCandidates);
+      const primaryBtnText = pickTextColor(primary, [avail[1], avail[0], ...textCandidates]);
+      const secondaryBtnText = pickTextColor(secondary, [avail[1], avail[0], ...textCandidates]);
+
+      const muted = avail[5] || avail[4] || mixHex(surface, bodyText.color, 0.35);
+      const border = avail[5] || avail[4] || mixHex(surface, '#000000', 0.25);
+
+      return {
+        bg, surface, primary, secondary, muted, border,
+        bodyText: bodyText.color, headerText: headerText.color,
+        primaryBtnText: primaryBtnText.color, secondaryBtnText: secondaryBtnText.color,
+        lowContrast: bodyText.low || headerText.low || primaryBtnText.low || secondaryBtnText.low,
+      };
+    }
+
+    function renderWebsitePreview() {
+      const hexColors = state.colors.map(c => c.hex);
+      const theme = computePreviewTheme(hexColors);
+
+      document.getElementById('previewUsingSixNote').classList.toggle('hidden', hexColors.length <= 6);
+      const noticeEl = document.getElementById('lowContrastNotice');
+      noticeEl.classList.toggle('hidden', !theme.lowContrast);
+      noticeEl.classList.toggle('flex', theme.lowContrast);
+
+      const mock = document.getElementById('websiteMock');
+      mock.innerHTML = `
+        <div style="background:${theme.bg};color:${theme.bodyText}" class="text-xs min-h-[310px]">
+          <nav style="background:${theme.surface};color:${theme.headerText};border-bottom:1px solid ${theme.border}" class="flex items-center justify-between px-3 py-2">
+            <div class="flex items-center gap-1.5 font-bold text-[11px] tracking-tight">
+              <span style="background:${theme.primary}" class="w-4 h-4 rounded-md inline-flex items-center justify-center shadow-sm">
+                <span style="background:${theme.primaryBtnText}" class="w-1.5 h-1.5 rounded-full"></span>
+              </span>
+              Luma
+            </div>
+            <div class="flex items-center gap-2.5 text-[8px] font-medium" style="color:${theme.muted}">
+              <span>Product</span><span>Solutions</span><span>Pricing</span>
+            </div>
+            <span style="background:${theme.primary};color:${theme.primaryBtnText}" class="px-2 py-1 rounded-md text-[8px] font-bold shadow-sm">Get started</span>
+          </nav>
+
+          <main>
+            <section class="grid grid-cols-[1.05fr_.95fr] gap-3 items-center px-3 pt-4 pb-3">
+              <div>
+                <div style="color:${theme.secondary}" class="text-[8px] font-bold uppercase tracking-[0.16em] mb-1.5">The smarter workspace</div>
+                <h3 class="text-[17px] leading-[1.08] font-extrabold tracking-tight mb-1.5">Turn ideas into<br><span style="color:${theme.primary}">real momentum.</span></h3>
+                <p class="text-[8px] leading-relaxed mb-2.5" style="color:${theme.muted}">Plan, create, and collaborate in one focused place built for modern teams.</p>
+                <div class="flex items-center gap-1.5">
+                  <span style="background:${theme.primary};color:${theme.primaryBtnText}" class="px-2 py-1 rounded-md text-[8px] font-bold shadow-sm">Start for free</span>
+                  <span style="color:${theme.secondary};border:1px solid ${theme.secondary}" class="px-2 py-1 rounded-md text-[8px] font-bold">See demo</span>
+                </div>
+              </div>
+
+              <div style="background:${theme.surface};border:1px solid ${theme.border};box-shadow:0 10px 25px ${mixHex(theme.bg, '#000000', 0.35)}55" class="rounded-lg p-1.5">
+                <div class="flex items-center justify-between pb-1.5">
+                  <div class="flex gap-0.5">
+                    <span style="background:${theme.primary}" class="w-1.5 h-1.5 rounded-full"></span>
+                    <span style="background:${theme.secondary}" class="w-1.5 h-1.5 rounded-full"></span>
+                    <span style="background:${theme.muted}" class="w-1.5 h-1.5 rounded-full"></span>
+                  </div>
+                  <span style="color:${theme.muted}" class="text-[6px]">Overview</span>
+                </div>
+                <div style="background:${mixHex(theme.bg, theme.surface, 0.35)}" class="rounded-md p-1.5 space-y-1.5">
+                  <div class="grid grid-cols-2 gap-1">
+                    <div style="background:${theme.surface};border:1px solid ${theme.border}" class="rounded p-1">
+                      <div style="color:${theme.muted}" class="text-[6px]">Revenue</div>
+                      <div style="color:${theme.headerText}" class="text-[10px] font-bold">$24.8k</div>
+                      <div style="color:${theme.secondary}" class="text-[6px]">↗ 12.5%</div>
+                    </div>
+                    <div style="background:${theme.surface};border:1px solid ${theme.border}" class="rounded p-1">
+                      <div style="color:${theme.muted}" class="text-[6px]">Projects</div>
+                      <div style="color:${theme.headerText}" class="text-[10px] font-bold">128</div>
+                      <div style="color:${theme.secondary}" class="text-[6px]">8 active</div>
+                    </div>
+                  </div>
+                  <div style="background:${theme.surface};border:1px solid ${theme.border}" class="rounded p-1.5">
+                    <div class="flex items-end justify-between h-8 gap-1">
+                      ${[38, 58, 45, 72, 61, 88, 78].map((height, i) => `
+                        <span style="height:${height}%;background:${i === 5 ? theme.primary : mixHex(theme.primary, theme.surface, 0.42)}" class="flex-1 rounded-t-sm"></span>
+                      `).join('')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section style="border-top:1px solid ${theme.border};border-bottom:1px solid ${theme.border}" class="px-3 py-2 flex items-center justify-between">
+              <span style="color:${theme.muted}" class="text-[6px] uppercase tracking-wider">Trusted by teams at</span>
+              <div style="color:${theme.bodyText}" class="flex gap-3 text-[7px] font-bold opacity-70"><span>ARC</span><span>North</span><span>VERTEX</span></div>
+            </section>
+
+            <section class="grid grid-cols-3 gap-1.5 px-3 py-3">
+              ${[
+          ['01', 'Move faster', 'Keep every project moving.'],
+          ['02', 'Stay aligned', 'Share context with your team.'],
+          ['03', 'See progress', 'Turn activity into insight.']
+        ].map(([number, title, copy]) => `
+                <div style="background:${theme.surface};border:1px solid ${theme.border}" class="rounded-md p-1.5">
+                  <span style="color:${theme.secondary}" class="text-[7px] font-bold">${number}</span>
+                  <div style="color:${theme.headerText}" class="text-[8px] font-bold mt-0.5">${title}</div>
+                  <div style="color:${theme.muted}" class="text-[6px] leading-snug mt-0.5">${copy}</div>
+                </div>
+              `).join('')}
+            </section>
+          </main>
+        </div>
+      `;
+
+      const legend = document.getElementById('roleLegend');
+      const legendColors = [theme.bg, theme.surface, theme.primary, theme.secondary, theme.bodyText, theme.muted];
+      legend.innerHTML = PREVIEW_ROLE_NAMES.map((label, i) => `
+        <span class="inline-flex items-center gap-1 truncate" title="${label}">
+          <span class="w-2 h-2 rounded-sm border border-slate-700 inline-block flex-shrink-0" style="background:${legendColors[i]}"></span>
+          <span class="truncate">${i + 1}. ${label}</span>
+        </span>
+      `).join('');
+    }
+
+    function genId() {
+      return (crypto.randomUUID ? crypto.randomUUID() : 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2));
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = String(str);
+      return div.innerHTML;
+    }
+
+    function makeColor(hex, extra = {}) {
+      return {
+        id: 'c' + Math.random().toString(36).slice(2, 10),
+        hex,
+        sourceRegionId: null,
+        ...extra,
+      };
+    }
+
+    // ==================================================================
+    // Color Utils
+    // ==================================================================
+    function normalizeHex(input) {
+      let h = String(input || '').trim().replace(/^#/, '');
+      if (/^[0-9a-fA-F]{3}$/.test(h)) h = h.split('').map(c => c + c).join('');
+      if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+      return '#' + h.toUpperCase();
+    }
+
+    function randomHex() {
+      const n = Math.floor(Math.random() * 0x1000000);
+      return '#' + n.toString(16).padStart(6, '0').toUpperCase();
+    }
+
+    function hexToRgb(hex) {
+      const h = hex.replace('#', '');
+      return {
+        r: parseInt(h.slice(0, 2), 16),
+        g: parseInt(h.slice(2, 4), 16),
+        b: parseInt(h.slice(4, 6), 16),
+      };
+    }
+
+    function rgbToHex(r, g, b) {
+      const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
+      return '#' + [r, g, b].map(v => clamp(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
+
+    function rgbToHsl(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+      if (max === min) {
+        h = s = 0;
+      } else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+      }
+      return { h: h * 360, s: s * 100, l: l * 100 };
+    }
+
+    function hslToRgb(h, s, l) {
+      h = ((h % 360) + 360) % 360 / 360;
+      s = Math.max(0, Math.min(100, s)) / 100;
+      l = Math.max(0, Math.min(100, l)) / 100;
+      if (s === 0) {
+        const v = l * 255;
+        return { r: v, g: v, b: v };
+      }
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      return {
+        r: hue2rgb(p, q, h + 1 / 3) * 255,
+        g: hue2rgb(p, q, h) * 255,
+        b: hue2rgb(p, q, h - 1 / 3) * 255,
+      };
+    }
+
+    function relativeLuminance(hex) {
+      const { r, g, b } = hexToRgb(hex);
+      const chan = v => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      };
+      return 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
+    }
+
+    function readableTextColor(hex) {
+      return relativeLuminance(hex) > 0.42 ? '#0F172A' : '#F8FAFC';
+    }
+
+    function formatColor(hex, format) {
+      const { r, g, b } = hexToRgb(hex);
+      if (format === 'rgb') return `rgb(${r}, ${g}, ${b})`;
+      if (format === 'hsl') {
+        const { h, s, l } = rgbToHsl(r, g, b);
+        return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
+      }
+      return hex;
+    }
+
+    function parseColorInput(raw, format) {
+      const trimmed = String(raw || '').trim();
+      if (format === 'hex') return normalizeHex(trimmed);
+
+      if (format === 'rgb') {
+        const m = trimmed.match(/^rgba?\(?\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*[\d.]+\s*)?\)?$/i);
+        if (!m) return null;
+        const [r, g, b] = [m[1], m[2], m[3]].map(Number);
+        if ([r, g, b].some(v => v < 0 || v > 255)) return null;
+        return rgbToHex(r, g, b);
+      }
+
+      if (format === 'hsl') {
+        const m = trimmed.match(/^hsla?\(?\s*([\d.]+)\s*,\s*([\d.]+)%?\s*,\s*([\d.]+)%?\s*(?:,\s*[\d.]+\s*)?\)?$/i);
+        if (!m) return null;
+        const [h, s, l] = [m[1], m[2], m[3]].map(Number);
+        if (s < 0 || s > 100 || l < 0 || l > 100) return null;
+        const { r, g, b } = hslToRgb(h, s, l);
+        return rgbToHex(r, g, b);
+      }
+
+      return null;
+    }
+
+    // ==================================================================
+    // Swatch Render
+    // ==================================================================
+    const swatchGrid = document.getElementById('swatchGrid');
+    const colorCountLabel = document.getElementById('colorCountLabel');
+    const paletteNameInput = document.getElementById('paletteNameInput');
+
+    function emptyPaletteTemplate() {
+      return `
+        <div class="w-full max-w-md border-2 border-dashed border-slate-800/80 rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center space-y-3.5 bg-slate-950/60 my-auto select-none">
+          <div class="p-3 bg-indigo-600/10 text-indigo-400 rounded-2xl border border-indigo-500/20 shadow-inner">
+            <i data-lucide="palette" class="w-7 h-7"></i>
+          </div>
+          <div class="space-y-1 max-w-sm">
+            <h3 class="text-sm font-bold text-slate-200 tracking-tight">Your Palette is Empty</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Sample colors directly from the image using <span class="text-indigo-300 font-semibold">Point</span> or <span class="text-indigo-300 font-semibold">Area Avg</span>, or add a color manually to get started.
+            </p>
+          </div>
+          <div class="flex items-center gap-2 pt-1 flex-wrap justify-center">
+            <button onclick="addColor()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shadow-sm">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>Add Color</span>
+            </button>
+            <button onclick="if(window.triggerLoadSample) window.triggerLoadSample()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+              <i data-lucide="image" class="w-3.5 h-3.5"></i>
+              <span>Load Sample Image</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function swatchTemplate(color, index) {
+      const valueStr = formatColor(color.hex, state.displayFormat);
+      const regionNum = color.sourceRegionId ? regionDisplayNumber(color.sourceRegionId) : null;
+      return `
+        <div class="swatch-card flex-1 min-w-[76px] sm:min-w-[92px] h-[260px] sm:h-[290px] lg:h-[310px] flex flex-col justify-between overflow-hidden bg-slate-950 transition-all select-none border-t-transparent" data-id="${color.id}">
+          <!-- UPPER COLOR FIELD (Pure color area, native picker) -->
+          <div class="swatch-drag-surface relative flex-1 w-full group transition-colors" style="background-color: ${color.hex}" title="Drag to reorder" aria-label="Drag color ${index + 1} to reorder">
+            <div class="absolute inset-x-0 top-0 p-1.5 flex items-center justify-end gap-1 pointer-events-none z-20">
+              <div class="flex items-center gap-0.5 pointer-events-auto">
+                ${regionNum ? `
+                  <button class="swatch-region-badge inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-black/40 text-white backdrop-blur-sm hover:bg-black/70 transition" title="Linked to image region ${regionNum} — click to view" aria-label="View source region ${regionNum} for color ${index + 1}">
+                    <i data-lucide="crop" class="w-3 h-3"></i><span class="text-[9px] font-mono">${regionNum}</span>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- LOWER CONTROLS FOOTER (Text input & buttons directly underneath) -->
+          <div class="p-1.5 space-y-1.5 bg-slate-950 border-t border-slate-800/80 flex flex-col justify-between flex-none z-20">
+            <div class="flex items-center gap-1">
+              <input type="text" data-coloris class="swatch-value-input swatch-color-input flex-1 min-w-0 bg-slate-900 border border-slate-700 text-slate-100 text-[11px] font-mono text-center rounded px-1 py-0.5 focus:outline-none focus:border-indigo-500" value="${valueStr}" spellcheck="false" aria-label="Edit color ${index + 1}" />
+              <button class="swatch-copy-btn p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-indigo-400 transition" title="Copy color value" aria-label="Copy color ${index + 1}">
+                <i data-lucide="copy" class="w-3 h-3"></i>
+              </button>
+            </div>
+
+            <div class="flex items-center justify-end gap-0.5">
+              <button class="swatch-remove-btn p-1 rounded hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 transition" title="Remove color" aria-label="Remove color ${index + 1}">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function updatePaletteButtonStates() {
+      const hasColors = state.colors.length > 0;
+      const hasNonPicked = state.colors.some(c => c.sourceRegionId === null);
+      const hasPicked = state.colors.some(c => c.sourceRegionId !== null);
+      const isUpdating = state.activeSavedId !== null && library.some(p => p.id === state.activeSavedId);
+
+      const addColorBtn = document.getElementById('addColorBtn');
+      const removeNonPickedBtn = document.getElementById('removeNonPickedBtn');
+      const removePickedBtn = document.getElementById('removePickedBtn');
+      const savePaletteBtn = document.getElementById('savePaletteBtn');
+      const exportCardBtn = document.getElementById('exportCardBtn');
+      const sharePaletteBtn = document.getElementById('sharePaletteBtn');
+      const copyMenuBtn = document.getElementById('copyMenuBtn');
+
+      if (addColorBtn) addColorBtn.disabled = state.colors.length >= MAX_COLORS;
+      if (removeNonPickedBtn) removeNonPickedBtn.disabled = !hasNonPicked;
+      if (removePickedBtn) removePickedBtn.disabled = !hasPicked;
+      if (exportCardBtn) exportCardBtn.disabled = !hasColors;
+      if (sharePaletteBtn) sharePaletteBtn.disabled = !hasColors;
+      if (copyMenuBtn) copyMenuBtn.disabled = !hasColors;
+
+      if (savePaletteBtn) {
+        savePaletteBtn.disabled = !hasColors;
+        const icon = isUpdating ? 'save' : 'bookmark';
+        const label = isUpdating ? 'Update' : 'Save';
+        savePaletteBtn.title = isUpdating ? 'Update saved palette in browser' : 'Save palette to browser library';
+
+        const labelSpan = savePaletteBtn.querySelector('span');
+        if (labelSpan && labelSpan.textContent !== label) {
+          labelSpan.textContent = label;
+          const currentIcon = savePaletteBtn.querySelector('i, svg');
+          if (currentIcon) {
+            const newIcon = document.createElement('i');
+            newIcon.setAttribute('data-lucide', icon);
+            newIcon.className = 'w-3.5 h-3.5';
+            currentIcon.replaceWith(newIcon);
+            lucide.createIcons();
+          }
+        }
+      }
+    }
+
+    function renderFormatSelector() {
+      document.querySelectorAll('.format-btn').forEach(btn => {
+        const active = btn.dataset.format === state.displayFormat;
+        btn.className = `format-btn px-2.5 py-0.5 text-[11px] font-semibold transition-all ${btn.dataset.format !== 'hex' ? 'border-l border-slate-700' : ''} ${active ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:bg-slate-800'}`;
+        btn.setAttribute('aria-pressed', String(active));
+      });
+    }
+
+    function render() {
+      paletteNameInput.value = state.name;
+      colorCountLabel.textContent = `${state.colors.length} / ${MAX_COLORS}`;
+
+      if (state.colors.length === 0) {
+        swatchGrid.className = "w-full flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-950/40 p-4 sm:p-6 min-h-[260px] sm:min-h-[290px] lg:min-h-[310px]";
+        swatchGrid.innerHTML = emptyPaletteTemplate();
+      } else {
+        swatchGrid.className = "w-full flex rounded-2xl overflow-x-auto border border-slate-800 bg-slate-950 min-h-[260px] sm:min-h-[290px] lg:min-h-[310px] shadow-xl relative";
+        swatchGrid.innerHTML = state.colors.map((c, i) => swatchTemplate(c, i)).join('');
+      }
+
+      wireSwatchEvents();
+      renderFormatSelector();
+      updatePaletteButtonStates();
+      lucide.createIcons();
+      renderWebsitePreview();
+      saveDraft();
+      if (window.onPaletteMakerRender) window.onPaletteMakerRender();
+      if (window.redrawCanvasOverlay) window.redrawCanvasOverlay();
+    }
+
+    // ==================================================================
+    // Mutations
+    // ==================================================================
+    function findColor(id) {
+      return state.colors.find(c => c.id === id);
+    }
+
+    function isColorInPalette(hex, excludeId = null) {
+      const norm = normalizeHex(hex);
+      if (!norm) return false;
+      return state.colors.some(c => c.id !== excludeId && c.hex.toUpperCase() === norm.toUpperCase());
+    }
+
+    function setColorHex(id, hex, { breakLink = true } = {}) {
+      const color = findColor(id);
+      if (!color) return;
+      const normHex = normalizeHex(hex);
+      if (!normHex) return;
+
+      if (color.hex.toUpperCase() !== normHex.toUpperCase() && isColorInPalette(normHex, id)) {
+        showToast(`Color ${normHex} is already in the palette.`, 'warning');
+        render();
+        return;
+      }
+
+      color.hex = normHex;
+      if (breakLink) color.sourceRegionId = null;
+      render();
+    }
+
+    function removeColor(id) {
+      const color = findColor(id);
+      state.colors = state.colors.filter(c => c.id !== id);
+      state.regions = state.regions.filter(r => r.colorId !== id && (!color || color.sourceRegionId !== r.id));
+      render();
+    }
+
+    function regionDisplayNumber(regionId) {
+      const idx = state.regions.findIndex(r => r.id === regionId);
+      return idx === -1 ? null : idx + 1;
+    }
+
+    function createRegionColor(regionId, hex) {
+      const normHex = normalizeHex(hex);
+      if (!normHex) return null;
+
+      if (isColorInPalette(normHex)) {
+        showToast(`Color ${normHex} is already in the palette.`, 'warning');
+        const existing = state.colors.find(c => c.hex.toUpperCase() === normHex.toUpperCase());
+        if (existing) {
+          const el = document.querySelector(`.swatch-card[data-id="${existing.id}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        return null;
+      }
+
+      if (state.colors.length >= MAX_COLORS) {
+        showToast(`Palettes are limited to ${MAX_COLORS} colors.`, 'error');
+        return null;
+      }
+      const color = makeColor(normHex, { sourceRegionId: regionId });
+      state.colors.push(color);
+      render();
+      return color.id;
+    }
+
+    function updateRegionColor(regionId, hex) {
+      const region = state.regions.find(r => r.id === regionId);
+      if (!region || !region.colorId) return;
+      const color = findColor(region.colorId);
+      if (color && color.sourceRegionId === regionId) {
+        setColorHex(color.id, hex, { breakLink: false });
+      }
+    }
+
+    function deleteRegionAndMaybeColor(regionId) {
+      const region = state.regions.find(r => r.id === regionId);
+      if (!region) return;
+      const color = region.colorId ? findColor(region.colorId) : null;
+      const stillLinked = !!(color && color.sourceRegionId === regionId);
+      if (stillLinked) {
+        state.colors = state.colors.filter(c => c.id !== color.id);
+      }
+      state.regions = state.regions.filter(r => r.id !== regionId);
+      render();
+    }
+
+    function clearRegionsKeepColors() {
+      if (state.regions.length === 0) return;
+      state.regions = [];
+      state.colors.forEach(c => { c.sourceRegionId = null; });
+      render();
+    }
+
+    function moveColor(id, dir) {
+      const idx = state.colors.findIndex(c => c.id === id);
+      const newIdx = idx + dir;
+      if (idx < 0 || newIdx < 0 || newIdx >= state.colors.length) return;
+      const [item] = state.colors.splice(idx, 1);
+      state.colors.splice(newIdx, 0, item);
+      render();
+    }
+
+    function addColor(hex) {
+      const normHex = hex ? normalizeHex(hex) : '#FFFFFF';
+      if (hex && normHex && isColorInPalette(normHex)) {
+        showToast(`Color ${normHex} is already in the palette.`, 'warning');
+        const existing = state.colors.find(c => c.hex.toUpperCase() === normHex.toUpperCase());
+        if (existing) {
+          const el = document.querySelector(`.swatch-card[data-id="${existing.id}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        return false;
+      }
+
+      if (state.colors.length >= MAX_COLORS) {
+        showToast(`Palettes are limited to ${MAX_COLORS} colors.`, 'error');
+        return false;
+      }
+      state.colors.push(makeColor(normHex || '#FFFFFF'));
+      render();
+      return true;
+    }
+
+    function removeNonPickedColors() {
+      const picked = state.colors.filter(c => c.sourceRegionId !== null);
+      if (state.colors.length === picked.length) return;
+      state.colors = picked;
+      render();
+    }
+
+    function removePickedColors() {
+      const nonPicked = state.colors.filter(c => c.sourceRegionId === null);
+      if (state.colors.length === nonPicked.length) return;
+      const pickedRegionIds = new Set(state.colors.filter(c => c.sourceRegionId !== null).map(c => c.sourceRegionId));
+      state.colors = nonPicked;
+      state.regions = state.regions.filter(r => !pickedRegionIds.has(r.id));
+      render();
+    }
+
+    // ==================================================================
+    // Saved Palette Library
+    // ==================================================================
+    function createNewPalette() {
+      state.name = 'Untitled Palette';
+      state.colors = [];
+      state.activeSavedId = null;
+      render();
+      renderLibrary();
+      saveDraft();
+      showToast('Started a new palette', 'success');
+    }
+
+    function savePaletteToLibrary() {
+      if (state.colors.length === 0) return;
+      const now = new Date().toISOString();
+      if (state.activeSavedId) {
+        const existing = library.find(p => p.id === state.activeSavedId);
+        if (existing) {
+          existing.name = state.name;
+          existing.colors = state.colors.map(c => c.hex);
+          existing.updatedAt = now;
+          if (persistLibrary()) {
+            showToast(`Updated "${state.name}"`, 'success');
+            renderLibrary();
+            updatePaletteButtonStates();
+          }
+          return;
+        }
+      }
+      saveAsNewPalette();
+    }
+
+    function saveAsNewPalette() {
+      if (state.colors.length === 0) return;
+      const now = new Date().toISOString();
+      const entry = { id: genId(), name: state.name, colors: state.colors.map(c => c.hex), createdAt: now, updatedAt: now };
+      library.unshift(entry);
+      if (persistLibrary()) {
+        state.activeSavedId = entry.id;
+        showToast(`Saved palette "${state.name}"`, 'success');
+        render();
+        renderLibrary();
+      } else {
+        library.shift();
+      }
+    }
+
+    function openSavedPalette(id) {
+      const entry = library.find(p => p.id === id);
+      if (!entry) return;
+      state.name = entry.name;
+      state.colors = entry.colors.map(hex => makeColor(hex));
+      state.activeSavedId = entry.id;
+      render();
+      renderLibrary();
+      showToast(`Opened "${entry.name}"`, 'success');
+    }
+
+    function duplicateSavedPalette(id) {
+      const entry = library.find(p => p.id === id);
+      if (!entry) return;
+      const now = new Date().toISOString();
+      const copy = { id: genId(), name: entry.name + ' Copy', colors: [...entry.colors], createdAt: now, updatedAt: now };
+      library.unshift(copy);
+      if (persistLibrary()) {
+        showToast(`Duplicated "${entry.name}"`, 'success');
+        renderLibrary();
+      } else {
+        library.shift();
+      }
+    }
+
+    function deleteSavedPalette(id) {
+      const entry = library.find(p => p.id === id);
+      if (!entry) return;
+      if (!confirm(`Delete saved palette "${entry.name}"? This cannot be undone.`)) return;
+      library = library.filter(p => p.id !== id);
+      if (state.activeSavedId === id) state.activeSavedId = null;
+      persistLibrary();
+      renderLibrary();
+      render();
+      showToast('Palette deleted', 'success');
+    }
+
+    function removeAllSavedPalettes() {
+      if (library.length === 0) return;
+      if (!confirm(`Are you sure you want to delete all ${library.length} saved palette(s)? This cannot be undone.`)) return;
+      library = [];
+      state.activeSavedId = null;
+      persistLibrary();
+      renderLibrary();
+      render();
+      showToast('All saved palettes removed', 'success');
+    }
+
+    function libraryItemTemplate(entry) {
+      const active = entry.id === state.activeSavedId;
+      const swatchStrip = entry.colors.slice(0, 12)
+        .map(hex => `<div class="flex-1" style="background:${hex}"></div>`).join('');
+      const name = escapeHtml(entry.name);
+      return `
+        <div class="library-item bg-slate-950 border ${active ? 'border-indigo-500' : 'border-slate-800'} rounded-lg p-2.5 space-y-1.5" data-id="${entry.id}">
+          <div class="flex h-4 rounded overflow-hidden border border-slate-800">${swatchStrip}</div>
+          <div class="flex items-center justify-between gap-1">
+            <span class="text-[11px] font-medium text-slate-200 truncate" title="${name}">${name}</span>
+            <span class="text-[9px] text-slate-500 font-mono flex-shrink-0">${entry.colors.length}</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button class="lib-open-btn flex-1 inline-flex items-center justify-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded transition" title="Open palette" aria-label="Open ${name}">
+              <i data-lucide="folder-open" class="w-2.5 h-2.5"></i> Open
+            </button>
+            <button class="lib-duplicate-btn p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition" title="Duplicate palette" aria-label="Duplicate ${name}">
+              <i data-lucide="copy-plus" class="w-3 h-3"></i>
+            </button>
+            <button class="lib-delete-btn p-1 rounded hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 transition" title="Delete palette" aria-label="Delete ${name}">
+              <i data-lucide="trash-2" class="w-3 h-3"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLibrary() {
+      const listEl = document.getElementById('libraryList');
+      const emptyEl = document.getElementById('libraryEmpty');
+      const removeAllBtn = document.getElementById('removeAllSavedBtn');
+      if (removeAllBtn) removeAllBtn.disabled = library.length === 0;
+
+      if (library.length === 0) {
+        emptyEl.classList.remove('hidden');
+        listEl.classList.add('hidden');
+        listEl.innerHTML = '';
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      listEl.classList.remove('hidden');
+      listEl.innerHTML = library.map(libraryItemTemplate).join('');
+      lucide.createIcons();
+      listEl.querySelectorAll('.library-item').forEach(item => {
+        const id = item.dataset.id;
+        item.querySelector('.lib-open-btn').addEventListener('click', () => openSavedPalette(id));
+        item.querySelector('.lib-duplicate-btn').addEventListener('click', () => duplicateSavedPalette(id));
+        item.querySelector('.lib-delete-btn').addEventListener('click', () => deleteSavedPalette(id));
+      });
+    }
+
+    // ==================================================================
+    // Events
+    // ==================================================================
+    let activeSwatchDrag = null;
+    let activeColorisColorId = null;
+
+    function isColorisOpen() {
+      const picker = document.getElementById('clr-picker');
+      return Boolean(picker && (
+        picker.classList.contains('clr-open') ||
+        picker.getAttribute('aria-hidden') === 'false'
+      ));
+    }
+
+    function dismissColoris() {
+      if (!isColorisOpen()) {
+        activeColorisColorId = null;
+        return;
+      }
+      if (window.Coloris && typeof window.Coloris.close === 'function') {
+        window.Coloris.close();
+        activeColorisColorId = null;
+        return;
+      }
+      const escapeEvent = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        code: 'Escape',
+        bubbles: true
+      });
+      document.dispatchEvent(escapeEvent);
+      document.dispatchEvent(new KeyboardEvent('keyup', {
+        key: 'Escape',
+        code: 'Escape',
+        bubbles: true
+      }));
+      activeColorisColorId = null;
+    }
+
+    function animateSwatchLayout(previousRects) {
+      swatchGrid.querySelectorAll('.swatch-card').forEach(el => {
+        const previous = previousRects.get(el.dataset.id);
+        if (!previous) return;
+        const next = el.getBoundingClientRect();
+        const dx = previous.left - next.left;
+        if (Math.abs(dx) < 0.5) return;
+        el.animate(
+          [{ transform: `translate3d(${dx}px, 0, 0)` }, { transform: 'translate3d(0, 0, 0)' }],
+          { duration: 340, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        );
+      });
+    }
+
+    function startSwatchDrag(event, card) {
+      if (activeSwatchDrag) return;
+      if (event.button !== undefined && event.button !== 0) return;
+      if (event.target.closest('button, input, a')) return;
+      event.preventDefault();
+
+      const handle = event.currentTarget;
+      activeSwatchDrag = {
+        armed: true,
+        card,
+        handle,
+        colorisWasOpen: isColorisOpen(),
+        colorisWasOpenForCard: isColorisOpen() && activeColorisColorId === card.dataset.id,
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        originRect: card.getBoundingClientRect(),
+        finishing: false
+      };
+      handle.setPointerCapture(event.pointerId);
+    }
+
+    function activateSwatchDrag(event, drag) {
+      const { card } = drag;
+      dismissColoris();
+      const rect = drag.originRect;
+      const cards = [...swatchGrid.querySelectorAll('.swatch-card')];
+      const widths = new Map(cards.map(el => [el, el.getBoundingClientRect().width]));
+      const placeholder = document.createElement('div');
+      placeholder.className = 'swatch-drop-slot';
+      placeholder.setAttribute('aria-hidden', 'true');
+      placeholder.style.width = `${rect.width}px`;
+      placeholder.style.height = `${rect.height}px`;
+
+      cards.forEach(el => {
+        el.style.flex = `0 0 ${widths.get(el)}px`;
+        el.style.width = `${widths.get(el)}px`;
+      });
+
+      card.before(placeholder);
+      document.body.appendChild(card);
+      drag.handle.setPointerCapture(drag.pointerId);
+      swatchGrid.classList.add('is-sorting');
+      card.classList.add('is-dragging');
+      card.style.left = `${rect.left}px`;
+      card.style.top = `${rect.top}px`;
+      card.style.width = `${rect.width}px`;
+      card.style.height = `${rect.height}px`;
+      card.style.transformOrigin = 'center center';
+
+      drag.armed = false;
+      drag.placeholder = placeholder;
+      drag.offsetX = drag.startClientX - rect.left;
+      drag.offsetY = drag.startClientY - rect.top;
+      drag.targetX = event.clientX - drag.offsetX;
+      drag.targetY = event.clientY - drag.offsetY;
+      drag.currentX = rect.left;
+      drag.currentY = rect.top;
+      drag.raf = 0;
+
+      const renderPosition = () => {
+        if (activeSwatchDrag !== drag || drag.finishing) return;
+        drag.currentX += (drag.targetX - drag.currentX) * 0.42;
+        drag.currentY += (drag.targetY - drag.currentY) * 0.42;
+        card.style.transform = `translate3d(${drag.currentX - rect.left}px, ${drag.currentY - rect.top}px, 0) scale(1.035)`;
+        drag.raf = requestAnimationFrame(renderPosition);
+      };
+      drag.raf = requestAnimationFrame(renderPosition);
+    }
+
+    function moveSwatchDrag(event) {
+      const drag = activeSwatchDrag;
+      if (!drag || drag.finishing || event.pointerId !== drag.pointerId) return;
+      if (drag.armed) {
+        const distance = Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY);
+        if (distance < 7) return;
+        activateSwatchDrag(event, drag);
+      }
+      event.preventDefault();
+
+      drag.targetX = event.clientX - drag.offsetX;
+      drag.targetY = event.clientY - drag.offsetY;
+
+      const gridRect = swatchGrid.getBoundingClientRect();
+      const edgeSize = Math.min(72, gridRect.width * 0.18);
+      if (event.clientX < gridRect.left + edgeSize) swatchGrid.scrollLeft -= 10;
+      if (event.clientX > gridRect.right - edgeSize) swatchGrid.scrollLeft += 10;
+
+      const siblings = [...swatchGrid.querySelectorAll('.swatch-card')];
+      const beforeRects = new Map(siblings.map(el => [el.dataset.id, el.getBoundingClientRect()]));
+      const next = siblings.find(el => event.clientX < el.getBoundingClientRect().left + el.getBoundingClientRect().width / 2);
+      const currentNext = drag.placeholder.nextElementSibling;
+      if (next && next !== currentNext) {
+        swatchGrid.insertBefore(drag.placeholder, next);
+        animateSwatchLayout(beforeRects);
+      } else if (!next && currentNext) {
+        swatchGrid.appendChild(drag.placeholder);
+        animateSwatchLayout(beforeRects);
+      }
+    }
+
+    function finishSwatchDrag(event, cancelled = false) {
+      const drag = activeSwatchDrag;
+      if (!drag || drag.finishing || (event && event.pointerId !== drag.pointerId)) return;
+      if (drag.armed) {
+        if (drag.handle.hasPointerCapture(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId);
+        activeSwatchDrag = null;
+        if (!cancelled) {
+          if (drag.colorisWasOpenForCard) {
+            dismissColoris();
+          } else {
+            if (drag.colorisWasOpen) dismissColoris();
+            const colorInput = drag.card.querySelector('.swatch-color-input');
+            if (colorInput) {
+              activeColorisColorId = drag.card.dataset.id;
+              colorInput.focus({ preventScroll: true });
+              colorInput.click();
+            }
+          }
+        }
+        return;
+      }
+      drag.finishing = true;
+      cancelAnimationFrame(drag.raf);
+      if (drag.handle.hasPointerCapture(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId);
+
+      const originalIndex = state.colors.findIndex(color => color.id === drag.card.dataset.id);
+      if (cancelled && originalIndex >= 0) {
+        const remainingCards = [...swatchGrid.querySelectorAll('.swatch-card')];
+        if (originalIndex >= remainingCards.length) swatchGrid.appendChild(drag.placeholder);
+        else swatchGrid.insertBefore(drag.placeholder, remainingCards[originalIndex]);
+      }
+      const targetIndex = [...swatchGrid.children].indexOf(drag.placeholder);
+      const slotRect = drag.placeholder.getBoundingClientRect();
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const duration = reduceMotion ? 0 : 300;
+
+      if (!cancelled && originalIndex >= 0 && targetIndex >= 0 && originalIndex !== targetIndex) {
+        const [moved] = state.colors.splice(originalIndex, 1);
+        state.colors.splice(targetIndex, 0, moved);
+      }
+
+      const destination = slotRect;
+      const fromTransform = getComputedStyle(drag.card).transform;
+      const dx = destination.left - parseFloat(drag.card.style.left);
+      const dy = destination.top - parseFloat(drag.card.style.top);
+      const settleAnimation = drag.card.animate(
+        [
+          { transform: fromTransform, borderRadius: '16px' },
+          { transform: `translate3d(${dx}px, ${dy}px, 0) scale(1)`, borderRadius: '0px' }
+        ],
+        { duration, easing: 'cubic-bezier(0.2, 0.9, 0.25, 1)', fill: 'forwards' }
+      );
+
+      window.setTimeout(() => {
+        settleAnimation.cancel();
+        drag.card.remove();
+        drag.placeholder.remove();
+        swatchGrid.classList.remove('is-sorting');
+        activeSwatchDrag = null;
+        render();
+      }, duration);
+    }
+
+    function wireSwatchEvents() {
+      // Wire detail inspector cards
+      swatchGrid.querySelectorAll('.swatch-card').forEach(card => {
+        const id = card.dataset.id;
+
+        const dragSurface = card.querySelector('.swatch-drag-surface');
+        if (dragSurface) {
+          dragSurface.addEventListener('pointerdown', event => startSwatchDrag(event, card));
+          dragSurface.addEventListener('pointermove', moveSwatchDrag);
+          dragSurface.addEventListener('pointerup', event => finishSwatchDrag(event));
+          dragSurface.addEventListener('pointercancel', event => finishSwatchDrag(event, true));
+        }
+
+        const valueInput = card.querySelector('.swatch-value-input');
+        if (valueInput) {
+          valueInput.addEventListener('focus', () => { activeColorisColorId = id; });
+          const commit = () => {
+            const normalized = parseColorInput(valueInput.value, state.displayFormat)
+              || normalizeHex(valueInput.value)
+              || parseColorInput(valueInput.value, 'rgb')
+              || parseColorInput(valueInput.value, 'hsl');
+            if (normalized) {
+              const currentColor = findColor(id);
+              if (currentColor && currentColor.hex.toUpperCase() === normalized.toUpperCase()) {
+                valueInput.value = formatColor(currentColor.hex, state.displayFormat);
+                return;
+              }
+              setColorHex(id, normalized);
+            } else {
+              showToast(`Enter a valid ${state.displayFormat.toUpperCase()} value.`, 'error');
+              render();
+            }
+          };
+          valueInput.addEventListener('input', () => {
+            const previewHex = normalizeHex(valueInput.value)
+              || parseColorInput(valueInput.value, 'rgb')
+              || parseColorInput(valueInput.value, 'hsl');
+            const colorSurface = card.querySelector('.swatch-drag-surface');
+            if (previewHex && colorSurface) colorSurface.style.backgroundColor = previewHex;
+          });
+          valueInput.addEventListener('change', commit);
+          valueInput.addEventListener('blur', commit);
+          valueInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); valueInput.blur(); }
+            if (e.key === 'Escape') { render(); }
+          });
+        }
+
+        const copyBtn = card.querySelector('.swatch-copy-btn');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', async () => {
+            const color = findColor(id);
+            const text = formatColor(color.hex, state.displayFormat);
+            try {
+              await navigator.clipboard.writeText(text);
+              showToast(`Copied ${text}`, 'success');
+            } catch (e) {
+              showToast('Could not copy to clipboard', 'error');
+            }
+          });
+        }
+
+        const regionBadge = card.querySelector('.swatch-region-badge');
+        if (regionBadge) {
+          regionBadge.addEventListener('click', () => {
+            const color = findColor(id);
+            if (color && color.sourceRegionId && window.selectRegionFromSwatch) {
+              window.selectRegionFromSwatch(color.sourceRegionId);
+            }
+          });
+        }
+
+        const removeBtn = card.querySelector('.swatch-remove-btn');
+        if (removeBtn) removeBtn.addEventListener('click', () => removeColor(id));
+      });
+    }
+
+    paletteNameInput.addEventListener('input', () => { state.name = paletteNameInput.value; saveDraft(); });
+    paletteNameInput.addEventListener('blur', () => {
+      if (!state.name.trim()) {
+        state.name = 'Untitled Palette';
+        paletteNameInput.value = state.name;
+        saveDraft();
+      }
+    });
+
+    document.getElementById('addColorBtn').addEventListener('click', () => addColor());
+    document.getElementById('removeNonPickedBtn').addEventListener('click', removeNonPickedColors);
+    document.getElementById('removePickedBtn').addEventListener('click', removePickedColors);
+
+    document.querySelectorAll('.format-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.displayFormat = btn.dataset.format;
+        savePreferences();
+        render();
+      });
+    });
+
+    document.getElementById('savePaletteBtn').addEventListener('click', savePaletteToLibrary);
+    document.getElementById('createNewBtn').addEventListener('click', createNewPalette);
+    document.getElementById('removeAllSavedBtn').addEventListener('click', removeAllSavedPalettes);
+
+    document.getElementById('sharePaletteBtn').addEventListener('click', async () => {
+      const url = buildShareUrl();
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('Share link copied to clipboard', 'success');
+      } catch (e) {
+        window.prompt('Copy this share link:', url);
+      }
+    });
+
+    document.getElementById('exportCardBtn').addEventListener('click', (e) => openCardModal(e.currentTarget));
+    document.getElementById('cardThemeDarkBtn').addEventListener('click', () => setCardTheme('dark'));
+    document.getElementById('cardThemeLightBtn').addEventListener('click', () => setCardTheme('light'));
+    document.getElementById('modalDownloadBtn').addEventListener('click', downloadCardPng);
+    document.getElementById('closeCardModalBtn').addEventListener('click', closeCardModal);
+    document.getElementById('cardModal').addEventListener('click', (e) => {
+      if (e.target.id === 'cardModal') closeCardModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !document.getElementById('cardModal').classList.contains('hidden')) closeCardModal();
+    });
+
+    async function copyText(text, label) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(`Copied ${label}`, 'success');
+      } catch (e) {
+        showToast('Could not copy to clipboard', 'error');
+      }
+      closeCopyMenu();
+    }
+
+    const copyMenuBtn = document.getElementById('copyMenuBtn');
+    const copyMenu = document.getElementById('copyMenu');
+
+    function openCopyMenu() {
+      copyMenu.classList.remove('hidden');
+      copyMenuBtn.setAttribute('aria-expanded', 'true');
+    }
+    function closeCopyMenu() {
+      copyMenu.classList.add('hidden');
+      copyMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+    copyMenuBtn.addEventListener('click', () => {
+      copyMenu.classList.contains('hidden') ? openCopyMenu() : closeCopyMenu();
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('copyMenuWrap').contains(e.target)) closeCopyMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeCopyMenu();
+    });
+
+    document.getElementById('copyAllBtn').addEventListener('click', () => {
+      const text = state.colors.map(c => formatColor(c.hex, state.displayFormat)).join(', ');
+      copyText(text, 'all colors');
+    });
+    document.getElementById('copyCssVarsBtn').addEventListener('click', () => {
+      const lines = state.colors.map((c, i) => `  --color-${i + 1}: ${c.hex};`).join('\n');
+      copyText(`:root {\n${lines}\n}`, 'CSS variables');
+    });
+    document.getElementById('copyGradientBtn').addEventListener('click', () => {
+      if (state.colors.length < 2) {
+        showToast('Add at least two colors to copy a gradient.', 'error');
+        closeCopyMenu();
+        return;
+      }
+      const stops = state.colors.map(c => c.hex).join(', ');
+      copyText(`linear-gradient(90deg, ${stops})`, 'CSS gradient');
+    });
+
+    // ==================================================================
+    // Toasts
+    // ==================================================================
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const bgClass = type === 'success' ? 'bg-emerald-900/90 border-emerald-500 text-emerald-100' :
+        type === 'error' ? 'bg-rose-900/90 border-rose-500 text-rose-100' :
+          type === 'warning' ? 'bg-amber-900/90 border-amber-500 text-amber-100' :
+            'bg-indigo-900/90 border-indigo-500 text-indigo-100';
+      const iconName = type === 'success' ? 'check-circle' : type === 'error' ? 'alert-triangle' : type === 'warning' ? 'alert-triangle' : 'info';
+
+      toast.className = `pointer-events-auto flex items-center gap-2 px-3.5 py-2 rounded-lg border backdrop-blur text-xs font-medium shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 max-w-xs ${bgClass}`;
+      const icon = document.createElement('i');
+      icon.dataset.lucide = iconName;
+      icon.className = 'w-4 h-4 flex-shrink-0';
+      const span = document.createElement('span');
+      span.textContent = message;
+      toast.append(icon, span);
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // ==================================================================
+    // Boot
+    // ==================================================================
+    function boot() {
+      loadPreferences();
+
+      const urlLoad = loadFromUrlHash();
+      if (urlLoad && urlLoad.ok) {
+        state.name = urlLoad.name;
+        state.colors = urlLoad.colors.map(hex => makeColor(hex));
+        state.activeSavedId = null;
+        showToast('Loaded palette from share link', 'success');
+      } else {
+        if (urlLoad && !urlLoad.ok) {
+          showToast('This share link is invalid or unsupported. Loaded your draft instead.', 'warning');
+        }
+        const draft = loadDraft();
+        if (draft) {
+          state.name = draft.name;
+          state.colors = draft.colors.map(hex => makeColor(hex));
+        }
+      }
+
+      library = loadLibrary();
+
+      lucide.createIcons();
+      render();
+      if (window.Coloris) {
+        Coloris({
+          el: '.swatch-color-input',
+          themeMode: 'dark',
+          alpha: false,
+          format: 'hex',
+          formatToggle: false,
+          clearButton: false,
+          closeButton: true,
+          wrap: false
+        });
+      }
+      renderLibrary();
+
+    }
+
+    boot();
+  </script>
+
+  <script type="module">
+    import OpenSeadragon from 'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/+esm';
+
+    const MAX_SAMPLE_PIXELS = 800 * 800;
+    const MIN_DRAG_PX = 6;
+    const MIN_REGION_IMG_PX = 4;
+
+    let viewer = null;
+    let imageLoaded = false;
+    let regionMode = 'pan';
+    let dragging = false;
+    let drawPoints = [];
+    let selectedRegionId = null;
+    let redrawArmedRegionId = null;
+    let currentObjectUrl = null;
+
+    const sourceCanvas = document.createElement('canvas');
+    const sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+
+    const viewerContainer = document.getElementById('imgViewerContainer');
+    const overlayCanvas = document.getElementById('imgOverlayCanvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const emptyState = document.getElementById('imgEmptyState');
+    const dropPrompt = document.getElementById('imgDropPrompt');
+    const urlInput = document.getElementById('imgUrlInput');
+    const modeHint = document.getElementById('imgModeHint');
+    const dimensionsLabel = document.getElementById('imgDimensionsLabel');
+
+    let hoverPos = null;
+
+    const modeButtons = {
+      pan: document.getElementById('imgPanModeBtn'),
+      point: document.getElementById('imgPointModeBtn'),
+      addRegion: document.getElementById('imgAddRegionModeBtn'),
+    };
+    const modeHints = {
+      pan: 'Drag to pan, scroll to zoom.',
+      point: 'Click or drag on image to pick exact pixel colors.',
+      addRegion: 'Drag rectangles to extract average colors.',
+    };
+    const ACTIVE_CLASS = 'border-indigo-500 bg-indigo-600/20 text-indigo-300';
+    const INACTIVE_CLASS = 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700';
+
+    function initViewer() {
+      const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      viewer = OpenSeadragon({
+        element: document.getElementById('osdViewer'),
+        showNavigationControl: false,
+        gestureSettingsMouse: { clickToZoom: false, scrollToZoom: true, flickEnabled: true },
+        visibilityRatio: 1,
+        minZoomImageRatio: 0.8,
+        maxZoomPixelRatio: 6,
+        springStiffness: reduceMotion ? 100 : 15,
+        animationTime: reduceMotion ? 0 : 0.5,
+        zoomPerScroll: 1.6,
+        zoomPerClick: 1.6,
+      });
+      viewer.addHandler('open', () => { resizeOverlayCanvas(); redrawOverlay(); });
+      viewer.addHandler('update-viewport', redrawOverlay);
+      viewer.addHandler('canvas-click', (e) => {
+        if (regionMode !== 'pan') return;
+        const imgPt = viewer.viewport.viewerElementToImageCoordinates(e.position);
+        selectRegion(hitTestRegion(imgPt, e.position));
+      });
+    }
+
+    function setRegionMode(newMode) {
+      if ((newMode === 'addRegion' || newMode === 'point') && !imageLoaded) return;
+      if ((newMode === 'addRegion' || newMode === 'point') && state.colors.length >= MAX_COLORS && !redrawArmedRegionId) {
+        showToast(`Palettes are limited to ${MAX_COLORS} colors — add room before sampling.`, 'error');
+        return;
+      }
+      regionMode = newMode;
+      Object.entries(modeButtons).forEach(([key, btn]) => {
+        if (!btn) return;
+        btn.className = `region-mode-btn inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border disabled:opacity-40 disabled:cursor-not-allowed ${key === regionMode ? ACTIVE_CLASS : INACTIVE_CLASS}`;
+      });
+
+      const defaultHint = modeHints[regionMode];
+      const armedHint = redrawArmedRegionId
+        ? (regionMode === 'point' ? 'Click a new point to replace color.' : 'Drag a new rectangle to replace region.')
+        : defaultHint;
+      modeHint.lastChild.textContent = ' ' + armedHint;
+
+      if (regionMode === 'pan') {
+        viewer && viewer.setMouseNavEnabled(true);
+        overlayCanvas.classList.remove('pointer-events-auto');
+        overlayCanvas.classList.add('pointer-events-none');
+        overlayCanvas.style.cursor = 'default';
+      } else {
+        viewer && viewer.setMouseNavEnabled(false);
+        overlayCanvas.classList.remove('pointer-events-none');
+        overlayCanvas.classList.add('pointer-events-auto');
+        overlayCanvas.style.cursor = 'crosshair';
+      }
+      redrawOverlay();
+    }
+
+    function updateRegionModeAvailability() {
+      modeButtons.point.disabled = !imageLoaded;
+      modeButtons.addRegion.disabled = !imageLoaded;
+      const atLimit = state.colors.length >= MAX_COLORS;
+      modeButtons.point.title = atLimit ? `Palette is at the ${MAX_COLORS}-color limit` : 'Click or drag on image to sample point color (Siphon)';
+      modeButtons.addRegion.title = atLimit ? `Palette is at the ${MAX_COLORS}-color limit` : 'Drag rectangles to extract area average color';
+      document.getElementById('imgRedrawBtn').disabled = !selectedRegionId;
+      document.getElementById('imgDeleteRegionBtn').disabled = !selectedRegionId;
+    }
+    window.onPaletteMakerRender = updateRegionModeAvailability;
+
+    function updateEmptyState() { emptyState.classList.toggle('hidden', imageLoaded); }
+
+    function resizeOverlayCanvas() {
+      const rect = viewerContainer.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      overlayCanvas.width = Math.max(1, Math.round(rect.width * dpr));
+      overlayCanvas.height = Math.max(1, Math.round(rect.height * dpr));
+      overlayCanvas.style.width = rect.width + 'px';
+      overlayCanvas.style.height = rect.height + 'px';
+      overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function imageRectToViewerPoints(r) {
+      const corners = [
+        { x: r.x, y: r.y }, { x: r.x + r.width, y: r.y },
+        { x: r.x + r.width, y: r.y + r.height }, { x: r.x, y: r.y + r.height },
+      ];
+      return corners.map(p => {
+        const pt = viewer.viewport.imageToViewerElementCoordinates(new OpenSeadragon.Point(p.x, p.y));
+        return { x: pt.x, y: pt.y };
+      });
+    }
+
+    function redrawOverlay() {
+      const rect = viewerContainer.getBoundingClientRect();
+      overlayCtx.clearRect(0, 0, rect.width, rect.height);
+      if (!imageLoaded || viewer.world.getItemCount() === 0) return;
+
+      state.regions.forEach((r, i) => {
+        if (redrawArmedRegionId === r.id && dragging) return;
+        const isSelected = (r.id === selectedRegionId);
+        if (r.type === 'point' || (r.width <= 1 && r.height <= 1)) {
+          const pt = viewer.viewport.imageToViewerElementCoordinates(new OpenSeadragon.Point(r.x, r.y));
+          drawPointShape(pt, i + 1, isSelected);
+        } else {
+          drawRegionShape(imageRectToViewerPoints(r), i + 1, isSelected);
+        }
+      });
+
+      if (dragging && regionMode === 'addRegion' && drawPoints.length === 2) {
+        drawRegionShape(rectPointsFromDrag(drawPoints), null, false, true);
+      }
+
+      if (regionMode === 'point' && hoverPos) {
+        const imgPt = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(hoverPos.x, hoverPos.y));
+        const sampled = sampleSinglePixel(imgPt);
+        drawPointLoupe(hoverPos, sampled.hex || null);
+      }
+    }
+
+    function rectPointsFromDrag(pts) {
+      const p0 = pts[0], p1 = pts[pts.length - 1];
+      const x = Math.min(p0.x, p1.x), y = Math.min(p0.y, p1.y);
+      const w = Math.abs(p1.x - p0.x), h = Math.abs(p1.y - p0.y);
+      return [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }];
+    }
+
+    function drawPointShape(pt, number, selected) {
+      const x = pt.x, y = pt.y;
+      overlayCtx.save();
+
+      // Outer target circle
+      overlayCtx.lineWidth = selected ? 2.5 : 1.5;
+      overlayCtx.strokeStyle = selected ? '#f59e0b' : '#818cf8';
+      overlayCtx.fillStyle = selected ? 'rgba(245, 158, 11, 0.25)' : 'rgba(99, 102, 241, 0.2)';
+      overlayCtx.beginPath();
+      overlayCtx.arc(x, y, 9, 0, Math.PI * 2);
+      overlayCtx.fill();
+      overlayCtx.stroke();
+
+      // Crosshairs
+      overlayCtx.lineWidth = 1;
+      overlayCtx.strokeStyle = selected ? '#fbbf24' : '#c7d2fe';
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(x - 14, y); overlayCtx.lineTo(x - 4, y);
+      overlayCtx.moveTo(x + 4, y); overlayCtx.lineTo(x + 14, y);
+      overlayCtx.moveTo(x, y - 14); overlayCtx.lineTo(x, y - 4);
+      overlayCtx.moveTo(x, y + 4); overlayCtx.lineTo(x, y + 14);
+      overlayCtx.stroke();
+
+      // Number badge
+      if (number != null) {
+        overlayCtx.font = '700 10px Inter, sans-serif';
+        const label = String(number);
+        const tw = overlayCtx.measureText(label).width;
+        const badgeX = x + 8, badgeY = y - 14;
+        overlayCtx.fillStyle = selected ? '#f59e0b' : '#6366f1';
+        overlayCtx.fillRect(badgeX, badgeY, tw + 4, 13);
+        overlayCtx.fillStyle = '#0f172a';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(label, badgeX + 2, badgeY + 6.5);
+      }
+
+      overlayCtx.restore();
+    }
+
+    function drawPointLoupe(pt, hex) {
+      const x = pt.x, y = pt.y;
+      overlayCtx.save();
+
+      // Crosshair directly on target point
+      overlayCtx.lineWidth = 1;
+      overlayCtx.strokeStyle = '#6366f1';
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(x - 10, y); overlayCtx.lineTo(x + 10, y);
+      overlayCtx.moveTo(x, y - 10); overlayCtx.lineTo(x, y + 10);
+      overlayCtx.stroke();
+
+      if (hex) {
+        const lx = x + 16, ly = y - 36;
+        overlayCtx.fillStyle = '#0f172a';
+        overlayCtx.strokeStyle = '#334155';
+        overlayCtx.lineWidth = 1.5;
+        roundRectPath(overlayCtx, lx, ly, 80, 26, 6);
+        overlayCtx.fill();
+        overlayCtx.stroke();
+
+        overlayCtx.fillStyle = hex;
+        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.beginPath();
+        overlayCtx.arc(lx + 14, ly + 13, 7, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.stroke();
+
+        overlayCtx.font = '600 10px Inter, monospace';
+        overlayCtx.fillStyle = '#f8fafc';
+        overlayCtx.textAlign = 'left';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(hex.toUpperCase(), lx + 27, ly + 13);
+      }
+
+      overlayCtx.restore();
+    }
+
+    function drawRegionShape(points, number, selected, inProgress = false) {
+      const xs = points.map(p => p.x), ys = points.map(p => p.y);
+      const x = Math.min(...xs), y = Math.min(...ys);
+      const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+
+      overlayCtx.save();
+      overlayCtx.lineWidth = selected ? 2 : 1.5;
+      overlayCtx.strokeStyle = inProgress ? '#6366f1' : (selected ? '#f59e0b' : '#818cf8');
+      overlayCtx.fillStyle = selected ? 'rgba(245, 158, 11, 0.18)' : 'rgba(99, 102, 241, 0.16)';
+      if (selected) overlayCtx.setLineDash([4, 2]);
+      overlayCtx.strokeRect(x, y, w, h);
+      overlayCtx.fillRect(x, y, w, h);
+      overlayCtx.restore();
+
+      if (number != null) {
+        overlayCtx.save();
+        overlayCtx.font = '700 10px Inter, sans-serif';
+        const label = String(number);
+        const pad = 2;
+        const tw = overlayCtx.measureText(label).width;
+        overlayCtx.fillStyle = selected ? '#f59e0b' : '#6366f1';
+        overlayCtx.fillRect(x + 2, y + 2, tw + pad * 2, 13);
+        overlayCtx.fillStyle = '#0f172a';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(label, x + 2 + pad, y + 2 + 6.5);
+        overlayCtx.restore();
+      }
+    }
+
+    function hitTestRegion(imgPt, viewerPt) {
+      for (let i = state.regions.length - 1; i >= 0; i--) {
+        const r = state.regions[i];
+        if (r.type === 'point' || (r.width <= 1 && r.height <= 1)) {
+          if (viewerPt && viewer) {
+            const pt = viewer.viewport.imageToViewerElementCoordinates(new OpenSeadragon.Point(r.x, r.y));
+            if (Math.hypot(viewerPt.x - pt.x, viewerPt.y - pt.y) <= 16) return r.id;
+          }
+        } else {
+          if (imgPt.x >= r.x && imgPt.x <= r.x + r.width && imgPt.y >= r.y && imgPt.y <= r.y + r.height) return r.id;
+        }
+      }
+      return null;
+    }
+
+    function selectRegion(regionId) {
+      selectedRegionId = regionId;
+      if (redrawArmedRegionId && redrawArmedRegionId !== regionId) redrawArmedRegionId = null;
+      redrawOverlay();
+      updateRegionModeAvailability();
+    }
+
+    window.selectRegionFromSwatch = function (regionId) {
+      const region = state.regions.find(r => r.id === regionId);
+      selectRegion(regionId);
+      if (region && viewer && viewer.world.getItemCount() > 0) {
+        const pad = Math.max(region.width || 1, region.height || 1, 40) * 0.6;
+        const rect = new OpenSeadragon.Rect(region.x - pad, region.y - pad, (region.width || 1) + pad * 2, (region.height || 1) + pad * 2);
+        viewer.viewport.fitBounds(viewer.viewport.imageToViewportRectangle(rect));
+      }
+    };
+
+    function onPointerDown(e) {
+      if (regionMode === 'pan' || !imageLoaded) return;
+      dragging = true;
+      overlayCanvas.setPointerCapture(e.pointerId);
+      const rect = overlayCanvas.getBoundingClientRect();
+      const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      drawPoints = [pt];
+      hoverPos = pt;
+      redrawOverlay();
+    }
+
+    function onPointerMove(e) {
+      const rect = overlayCanvas.getBoundingClientRect();
+      const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      hoverPos = pt;
+
+      if (dragging) {
+        if (regionMode === 'addRegion') {
+          drawPoints = [drawPoints[0], pt];
+        } else if (regionMode === 'point') {
+          drawPoints = [pt];
+        }
+      }
+      if (regionMode === 'point' || dragging) {
+        redrawOverlay();
+      }
+    }
+
+    function onPointerUp(e) {
+      if (!dragging) return;
+      dragging = false;
+      if (overlayCanvas.hasPointerCapture(e.pointerId)) overlayCanvas.releasePointerCapture(e.pointerId);
+
+      const rect = overlayCanvas.getBoundingClientRect();
+      const p1 = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const p0 = drawPoints[0] || p1;
+      const dragDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+
+      if (regionMode === 'addRegion') {
+        if (dragDist < MIN_DRAG_PX) {
+          const imgPt = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(p0.x, p0.y));
+          selectRegion(hitTestRegion(imgPt, p0));
+        } else {
+          finalizeDraw(p0, p1);
+        }
+      } else if (regionMode === 'point') {
+        const targetPt = dragDist < MIN_DRAG_PX ? p0 : p1;
+        const imgPt = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(targetPt.x, targetPt.y));
+        const existingId = !redrawArmedRegionId ? hitTestRegion(imgPt, targetPt) : null;
+        if (existingId) {
+          selectRegion(existingId);
+        } else {
+          finalizePointDraw(imgPt);
+        }
+      }
+
+      drawPoints = [];
+      redrawOverlay();
+    }
+
+    function sampleSinglePixel(imgPt) {
+      const w = sourceCanvas.width, h = sourceCanvas.height;
+      const px = Math.floor(imgPt.x), py = Math.floor(imgPt.y);
+      if (px < 0 || px >= w || py < 0 || py >= h) return { error: 'out_of_bounds' };
+
+      try {
+        const data = sourceCtx.getImageData(px, py, 1, 1).data;
+        if (data[3] === 0) return { error: 'empty' };
+        return { hex: rgbToHex(data[0], data[1], data[2]), px, py };
+      } catch (e) {
+        return { error: 'cors' };
+      }
+    }
+
+    function finalizePointDraw(imgPt) {
+      const res = sampleSinglePixel(imgPt);
+      if (res.error === 'cors') {
+        showToast('Cannot sample this image: its server blocks cross-origin pixel access. Try upload or paste instead.', 'error');
+        return;
+      }
+      if (res.error === 'empty') {
+        showToast('This pixel is transparent.', 'error');
+        return;
+      }
+      if (res.error === 'out_of_bounds') {
+        showToast('Click within the image boundaries.', 'error');
+        return;
+      }
+
+      const { hex, px, py } = res;
+
+      if (redrawArmedRegionId) {
+        const region = state.regions.find(r => r.id === redrawArmedRegionId);
+        if (region) {
+          if (isColorInPalette(hex, region.colorId)) {
+            showToast(`Color ${hex} is already in the palette.`, 'warning');
+            return;
+          }
+          region.type = 'point';
+          region.x = px; region.y = py; region.width = 1; region.height = 1;
+          updateRegionColor(region.id, hex);
+        }
+        selectedRegionId = redrawArmedRegionId;
+        redrawArmedRegionId = null;
+        setRegionMode('pan');
+        showToast(`Point updated to ${hex}`, 'success');
+      } else {
+        if (isColorInPalette(hex)) {
+          showToast(`Color ${hex} is already in the palette.`, 'warning');
+          const existing = state.colors.find(c => c.hex.toUpperCase() === hex.toUpperCase());
+          if (existing) {
+            const el = document.querySelector(`.swatch-card[data-id="${existing.id}"]`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+          return;
+        }
+        if (state.colors.length >= MAX_COLORS) {
+          showToast(`Palettes are limited to ${MAX_COLORS} colors.`, 'error');
+          return;
+        }
+        const region = { id: genId(), type: 'point', x: px, y: py, width: 1, height: 1, colorId: null };
+        const colorId = createRegionColor(region.id, hex);
+        if (colorId) {
+          region.colorId = colorId;
+          state.regions.push(region);
+          selectedRegionId = region.id;
+          showToast(`Sampled point color ${hex}`, 'success');
+        }
+      }
+    }
+
+    function finalizeDraw(p0, p1) {
+      const imgP0 = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(p0.x, p0.y));
+      const imgP1 = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(p1.x, p1.y));
+      const x = Math.max(0, Math.min(imgP0.x, imgP1.x));
+      const y = Math.max(0, Math.min(imgP0.y, imgP1.y));
+      const width = Math.min(sourceCanvas.width, Math.max(imgP0.x, imgP1.x)) - x;
+      const height = Math.min(sourceCanvas.height, Math.max(imgP0.y, imgP1.y)) - y;
+
+      if (width < MIN_REGION_IMG_PX || height < MIN_REGION_IMG_PX) {
+        showToast('Draw a slightly larger rectangle.', 'error');
+        return;
+      }
+
+      const result = computeRegionAverage({ x, y, width, height });
+      if (result.error === 'cors') {
+        showToast('Cannot sample this image: its server blocks cross-origin pixel access. Try upload, paste, or download-and-upload instead.', 'error');
+        return;
+      }
+      if (result.error === 'empty') {
+        showToast('This region has no visible (non-transparent) pixels.', 'error');
+        return;
+      }
+
+      const hex = result.hex;
+
+      if (redrawArmedRegionId) {
+        const region = state.regions.find(r => r.id === redrawArmedRegionId);
+        if (region) {
+          if (isColorInPalette(hex, region.colorId)) {
+            showToast(`Color ${hex} is already in the palette.`, 'warning');
+            return;
+          }
+          region.type = 'box';
+          region.x = x; region.y = y; region.width = width; region.height = height;
+          updateRegionColor(region.id, hex);
+        }
+        selectedRegionId = redrawArmedRegionId;
+        redrawArmedRegionId = null;
+        setRegionMode('pan');
+        showToast('Region redrawn', 'success');
+      } else {
+        if (isColorInPalette(hex)) {
+          showToast(`Color ${hex} is already in the palette.`, 'warning');
+          const existing = state.colors.find(c => c.hex.toUpperCase() === hex.toUpperCase());
+          if (existing) {
+            const el = document.querySelector(`.swatch-card[data-id="${existing.id}"]`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+          return;
+        }
+        if (state.colors.length >= MAX_COLORS) {
+          showToast(`Palettes are limited to ${MAX_COLORS} colors.`, 'error');
+          return;
+        }
+        const region = { id: genId(), type: 'box', x, y, width, height, colorId: null };
+        const colorId = createRegionColor(region.id, hex);
+        if (colorId) {
+          region.colorId = colorId;
+          state.regions.push(region);
+          selectedRegionId = region.id;
+        }
+      }
+    }
+
+    function redrawSelectedRegion() {
+      if (!selectedRegionId) return;
+      const region = state.regions.find(r => r.id === selectedRegionId);
+      redrawArmedRegionId = selectedRegionId;
+      if (region && region.type === 'point') {
+        setRegionMode('point');
+        showToast('Click a new point on the image to replace color.', 'info');
+      } else {
+        setRegionMode('addRegion');
+        showToast('Drag a new rectangle to replace region.', 'info');
+      }
+    }
+
+    function deleteSelectedRegion() {
+      if (!selectedRegionId) return;
+      deleteRegionAndMaybeColor(selectedRegionId);
+      selectedRegionId = null;
+      redrawOverlay();
+      updateRegionModeAvailability();
+    }
+
+    function clearAllRegions() {
+      selectedRegionId = null;
+      redrawArmedRegionId = null;
+      clearRegionsKeepColors();
+      redrawOverlay();
+      updateRegionModeAvailability();
+    }
+
+    function computeRegionAverage(rect) {
+      const w = sourceCanvas.width, h = sourceCanvas.height;
+      const x0 = Math.max(0, Math.floor(rect.x));
+      const y0 = Math.max(0, Math.floor(rect.y));
+      const x1 = Math.min(w, Math.ceil(rect.x + rect.width));
+      const y1 = Math.min(h, Math.ceil(rect.y + rect.height));
+      const bw = x1 - x0, bh = y1 - y0;
+      if (bw <= 0 || bh <= 0) return { error: 'empty' };
+
+      let sampleCanvas = sourceCanvas, sx = x0, sy = y0, sw = bw, sh = bh;
+      if (bw * bh > MAX_SAMPLE_PIXELS) {
+        const scale = Math.sqrt(MAX_SAMPLE_PIXELS / (bw * bh));
+        const dw = Math.max(1, Math.round(bw * scale));
+        const dh = Math.max(1, Math.round(bh * scale));
+        const tmp = document.createElement('canvas');
+        tmp.width = dw; tmp.height = dh;
+        try {
+          tmp.getContext('2d').drawImage(sourceCanvas, x0, y0, bw, bh, 0, 0, dw, dh);
+        } catch (e) {
+          return { error: 'cors' };
+        }
+        sampleCanvas = tmp; sx = 0; sy = 0; sw = dw; sh = dh;
+      }
+
+      let data;
+      try {
+        data = sampleCanvas.getContext('2d').getImageData(sx, sy, sw, sh).data;
+      } catch (e) {
+        return { error: 'cors' };
+      }
+
+      let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const a = data[i + 3];
+        if (a === 0) continue;
+        const weight = a / 255;
+        rSum += data[i] * weight;
+        gSum += data[i + 1] * weight;
+        bSum += data[i + 2] * weight;
+        aSum += weight;
+      }
+      if (aSum === 0) return { error: 'empty' };
+      return { hex: rgbToHex(rSum / aSum, gSum / aSum, bSum / aSum) };
+    }
+
+    function loadImageEl(url, crossOrigin) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        if (crossOrigin) img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('load-failed'));
+        img.src = url;
+      });
+    }
+
+    function setLoading(isLoading) { viewerContainer.style.opacity = isLoading ? '0.6' : '1'; }
+
+    async function handleNewImageSource(url, { isRemote = false } = {}) {
+      setLoading(true);
+      try {
+        let img;
+        if (isRemote) {
+          try { img = await loadImageEl(url, true); } catch (e) { img = await loadImageEl(url, false); }
+        } else {
+          img = await loadImageEl(url, false);
+        }
+
+        sourceCanvas.width = img.naturalWidth;
+        sourceCanvas.height = img.naturalHeight;
+        sourceCtx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+        sourceCtx.drawImage(img, 0, 0);
+
+        let corsRestricted = false;
+        try { sourceCtx.getImageData(0, 0, 1, 1); } catch (e) { corsRestricted = true; }
+
+        clearRegionsKeepColors();
+        selectedRegionId = null;
+        redrawArmedRegionId = null;
+        imageLoaded = true;
+
+        dimensionsLabel.innerText = `${img.naturalWidth} × ${img.naturalHeight}`;
+
+        const previousObjectUrl = currentObjectUrl;
+        currentObjectUrl = url.startsWith('blob:') ? url : null;
+
+        viewer.open({ type: 'image', url });
+
+        if (previousObjectUrl && previousObjectUrl !== url) URL.revokeObjectURL(previousObjectUrl);
+
+        updateEmptyState();
+        updateRegionModeAvailability();
+        document.getElementById('imgRemoveBtn').classList.remove('hidden');
+        setRegionMode('pan');
+
+        if (corsRestricted) {
+          showToast('Image loaded. Color sampling unavailable: server blocks cross-origin access.', 'warning');
+        }
+      } catch (e) {
+        showToast('Could not load image. Check the URL or file.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function loadImageFile(file) {
+      if (!file.type.startsWith('image/')) { showToast('Please choose a valid image file', 'error'); return; }
+      handleNewImageSource(URL.createObjectURL(file), { isRemote: false });
+    }
+
+    function loadFromUrlInput() {
+      const val = urlInput.value.trim();
+      if (!val) return;
+      handleNewImageSource(val, { isRemote: true });
+    }
+
+    function generateSampleImage() {
+      const c = document.createElement('canvas');
+      c.width = 1600; c.height = 1000;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = '#ef4444'; ctx.fillRect(80, 120, 420, 380);
+      ctx.fillStyle = '#22c55e'; ctx.fillRect(590, 120, 420, 380);
+      ctx.fillStyle = '#3b82f6'; ctx.fillRect(1100, 120, 420, 380);
+      const grad = ctx.createLinearGradient(80, 580, 1520, 900);
+      grad.addColorStop(0, '#f59e0b'); grad.addColorStop(0.5, '#ec4899'); grad.addColorStop(1, '#8b5cf6');
+      ctx.fillStyle = grad; ctx.fillRect(80, 580, 1440, 320);
+      ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 44px Inter, sans-serif';
+      ctx.fillText('Palette Maker Sample Image', 80, 70);
+      return c.toDataURL();
+    }
+
+    function loadSample() { handleNewImageSource(generateSampleImage(), { isRemote: false }); }
+
+    function removeImage() {
+      if (!imageLoaded) return;
+      clearAllRegions();
+      imageLoaded = false;
+      viewer.close();
+      updateEmptyState();
+      updateRegionModeAvailability();
+      document.getElementById('imgRemoveBtn').classList.add('hidden');
+      dimensionsLabel.innerText = '';
+      setRegionMode('pan');
+      showToast('Image removed', 'success');
+    }
+
+    function wireEvents() {
+      overlayCanvas.style.touchAction = 'none';
+      overlayCanvas.addEventListener('pointerdown', onPointerDown);
+      overlayCanvas.addEventListener('pointermove', onPointerMove);
+      overlayCanvas.addEventListener('pointerup', onPointerUp);
+      overlayCanvas.addEventListener('pointercancel', onPointerUp);
+      overlayCanvas.addEventListener('pointerleave', () => {
+        hoverPos = null;
+        redrawOverlay();
+      });
+
+      modeButtons.pan.addEventListener('click', () => setRegionMode('pan'));
+      modeButtons.point.addEventListener('click', () => setRegionMode('point'));
+      modeButtons.addRegion.addEventListener('click', () => setRegionMode('addRegion'));
+
+      const eyeDropperBtn = document.getElementById('imgEyeDropperBtn');
+      if (window.EyeDropper && eyeDropperBtn) {
+        eyeDropperBtn.classList.remove('hidden');
+        eyeDropperBtn.addEventListener('click', async () => {
+          try {
+            const eyeDropper = new window.EyeDropper();
+            const result = await eyeDropper.open();
+            if (result && result.sRGBHex) {
+              const hex = normalizeHex(result.sRGBHex);
+              if (hex) {
+                addColor(hex);
+                showToast(`Sampled ${hex} from screen`, 'success');
+              }
+            }
+          } catch (e) { }
+        });
+      }
+
+      document.getElementById('imgRedrawBtn').addEventListener('click', redrawSelectedRegion);
+      document.getElementById('imgDeleteRegionBtn').addEventListener('click', deleteSelectedRegion);
+      document.getElementById('imgClearRegionsBtn').addEventListener('click', clearAllRegions);
+      document.getElementById('imgRemoveBtn').addEventListener('click', removeImage);
+
+      document.getElementById('imgZoomInBtn').addEventListener('click', () => { viewer.viewport.zoomBy(2); viewer.viewport.applyConstraints(); });
+      document.getElementById('imgZoomOutBtn').addEventListener('click', () => { viewer.viewport.zoomBy(0.5); viewer.viewport.applyConstraints(); });
+      document.getElementById('imgResetViewBtn').addEventListener('click', () => viewer.viewport.goHome());
+
+      document.getElementById('imgFileInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) loadImageFile(file);
+        e.target.value = '';
+      });
+      document.getElementById('imgSampleBtn').addEventListener('click', loadSample);
+      document.getElementById('imgLoadUrlBtn').addEventListener('click', loadFromUrlInput);
+      urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadFromUrlInput(); });
+
+      viewerContainer.addEventListener('dragover', (e) => { e.preventDefault(); dropPrompt.classList.remove('hidden'); });
+      viewerContainer.addEventListener('dragleave', (e) => { e.preventDefault(); dropPrompt.classList.add('hidden'); });
+      viewerContainer.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropPrompt.classList.add('hidden');
+        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) {
+          loadImageFile(file);
+        }
+      });
+
+      document.addEventListener('paste', (e) => {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (items) {
+          for (const item of items) {
+            if (item.type && item.type.startsWith('image/')) {
+              const file = item.getAsFile();
+              if (file) {
+                loadImageFile(file);
+                e.preventDefault();
+                return;
+              }
+            }
+          }
+        }
+        if (document.activeElement === urlInput) {
+          const text = e.clipboardData && e.clipboardData.getData('text/plain');
+          if (text && /^(https?:\/\/|data:image\/)/i.test(text.trim())) {
+            urlInput.value = text.trim();
+            handleNewImageSource(text.trim(), { isRemote: true });
+            e.preventDefault();
+          }
+        }
+      });
+
+      const ro = new ResizeObserver(() => { resizeOverlayCanvas(); redrawOverlay(); });
+      ro.observe(viewerContainer);
+    }
+
+    window.triggerLoadSample = function () {
+      loadSample();
+    };
+
+    window.redrawCanvasOverlay = function () {
+      if (selectedRegionId && !state.regions.some(r => r.id === selectedRegionId)) {
+        selectedRegionId = null;
+      }
+      updateRegionModeAvailability();
+      redrawOverlay();
+    };
+
+    initViewer();
+    setRegionMode('pan');
+    updateRegionModeAvailability();
+    updateEmptyState();
+    resizeOverlayCanvas();
+    wireEvents();
+    loadSample();
+  </script>
+</body>
+
+</html>
