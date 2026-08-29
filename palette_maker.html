@@ -283,7 +283,7 @@
         </div>
 
         <div id="imgDropPrompt"
-          class="hidden absolute inset-0 bg-indigo-950/80 backdrop-blur-sm border-2 border-dashed border-indigo-400 rounded-none flex flex-col items-center justify-center text-center p-4 z-20">
+          class="hidden absolute inset-0 bg-indigo-950/80 backdrop-blur-sm border-2 border-dashed border-indigo-400 rounded-none flex flex-col items-center justify-center text-center p-4 z-20 pointer-events-none">
           <i data-lucide="file-up" class="w-8 h-8 text-indigo-300 mb-1 animate-bounce"></i>
           <p class="text-xs font-semibold text-white">Drop your image here</p>
         </div>
@@ -674,7 +674,12 @@
     const CARD_W = 540, CARD_H = 320;
 
     function slugify(name) {
-      const s = String(name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const s = String(name || '')
+        .trim()
+        .replace(/[\/\?%*:|"<>]+/g, '-')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
       return s || 'untitled';
     }
 
@@ -2113,23 +2118,42 @@
       });
     }
 
+    // Prevent browser default behavior for dragging files onto window (never open dropped images in new tab)
+    ['dragover', 'drop'].forEach(eventName => {
+      window.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }, false);
+    });
+
+    let libraryDragCounter = 0;
     const librarySection = document.getElementById('librarySection');
     if (librarySection) {
-      ['dragenter', 'dragover'].forEach(name => {
-        librarySection.addEventListener(name, (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          librarySection.classList.add('border-indigo-500', 'bg-indigo-950/40');
-        });
+      librarySection.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        libraryDragCounter++;
+        librarySection.classList.add('border-indigo-500', 'bg-indigo-950/40');
       });
-      ['dragleave', 'drop'].forEach(name => {
-        librarySection.addEventListener(name, (e) => {
-          e.preventDefault();
-          e.stopPropagation();
+      librarySection.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      });
+      librarySection.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        libraryDragCounter--;
+        if (libraryDragCounter <= 0) {
+          libraryDragCounter = 0;
           librarySection.classList.remove('border-indigo-500', 'bg-indigo-950/40');
-        });
+        }
       });
       librarySection.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        libraryDragCounter = 0;
+        librarySection.classList.remove('border-indigo-500', 'bg-indigo-950/40');
         const files = e.dataTransfer ? [...e.dataTransfer.files] : [];
         for (const file of files) {
           const imported = await importPaletteFromFile(file);
@@ -3014,12 +3038,33 @@
       document.getElementById('imgLoadUrlBtn').addEventListener('click', loadFromUrlInput);
       urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadFromUrlInput(); });
 
-      viewerContainer.addEventListener('dragover', (e) => { e.preventDefault(); dropPrompt.classList.remove('hidden'); });
-      viewerContainer.addEventListener('dragleave', (e) => { e.preventDefault(); dropPrompt.classList.add('hidden'); });
+      let viewerDragCounter = 0;
+      viewerContainer.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        viewerDragCounter++;
+        dropPrompt.classList.remove('hidden');
+      });
+      viewerContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      });
+      viewerContainer.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        viewerDragCounter--;
+        if (viewerDragCounter <= 0) {
+          viewerDragCounter = 0;
+          dropPrompt.classList.add('hidden');
+        }
+      });
       viewerContainer.addEventListener('drop', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        viewerDragCounter = 0;
         dropPrompt.classList.add('hidden');
-        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
         if (file) {
           loadImageFile(file);
         }
