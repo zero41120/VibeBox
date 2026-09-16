@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Markdown Previewer</title>
+  <meta name="description" content="Live Markdown preview with GitHub-flavored rendering, word/char counts, and one-click copy." />
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Inter Font -->
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <!-- Marked.js for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter font', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    #preview h1, #preview h2, #preview h3, #preview h4, #preview h5, #preview h6 {
+      font-weight: 700;
+      color: #f8fafc;
+      margin-top: 1.2em;
+      margin-bottom: 0.6em;
+    }
+    #preview h1 { font-size: 1.75em; border-bottom: 1px solid #1e293b; padding-bottom: 0.3em; }
+    #preview h2 { font-size: 1.4em; border-bottom: 1px solid #1e293b; padding-bottom: 0.3em; }
+    #preview h3 { font-size: 1.2em; }
+    #preview h4 { font-size: 1.05em; }
+    #preview p { margin: 0.8em 0; line-height: 1.7; }
+    #preview ul { list-style-type: disc; margin: 0.8em 0 0.8em 1.5rem; }
+    #preview ol { list-style-type: decimal; margin: 0.8em 0 0.8em 1.5rem; }
+    #preview li { margin: 0.25em 0; }
+    #preview blockquote {
+      margin: 1em 0;
+      padding: 0.4em 1rem;
+      border-left: 3px solid #6366f1;
+      background: rgba(99, 102, 241, 0.08);
+      color: #cbd5e1;
+      font-style: italic;
+    }
+    #preview pre {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      padding: 0.9rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1em 0;
+    }
+    #preview code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9em;
+      background: rgba(148, 163, 184, 0.15);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: #e2e8f0;
+    }
+    #preview pre code {
+      background: none;
+      padding: 0;
+      color: #e2e8f0;
+    }
+    #preview table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+      font-size: 0.9em;
+    }
+    #preview th, #preview td {
+      border: 1px solid #1e293b;
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    #preview th {
+      background: #0f172a;
+      font-weight: 600;
+    }
+    #preview hr {
+      border: 0;
+      border-top: 1px solid #1e293b;
+      margin: 1.5em 0;
+    }
+    #preview a {
+      color: #818cf8;
+      text-decoration: underline;
+    }
+    #preview img {
+      max-width: 100%;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body class="h-full font-sans antialiased bg-slate-950 text-slate-100 flex flex-col">
+
+  <!-- Header Section -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+          <i data-lucide="file-text" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white tracking-tight">Markdown Previewer</h1>
+          <p class="text-xs text-slate-400">Type Markdown on the left, see a live GitHub-flavored preview on the right.</p>
+        </div>
+      </div>
+
+      <a href="index.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">All Tools</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0">
+
+    <!-- LEFT: Markdown Input -->
+    <section class="flex flex-col bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden min-h-[50vh] md:min-h-0">
+      <div class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <i data-lucide="code" class="w-4 h-4 text-slate-400"></i>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Source</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="inputStats" class="text-xs text-slate-500 font-mono">0 words &middot; 0 chars</span>
+          <button id="btnSample" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+            <i data-lucide="wand-sparkles" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Sample</span>
+          </button>
+          <button id="btnClear" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-900 rounded-lg transition-colors">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Clear</span>
+          </button>
+        </div>
+      </div>
+      <textarea id="markdownInput"
+        class="flex-1 w-full p-4 bg-slate-950 text-slate-100 font-mono text-sm leading-relaxed resize-none focus:outline-none placeholder-slate-600 transition-colors"
+        placeholder="Type or paste Markdown here... (or drop a .md file)" spellcheck="false"></textarea>
+    </section>
+
+    <!-- RIGHT: Rendered Preview -->
+    <section class="flex flex-col bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden min-h-[50vh] md:min-h-0">
+      <div class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <i data-lucide="eye" class="w-4 h-4 text-slate-400"></i>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Preview</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnCopyHtml" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+            <i data-lucide="code-2" class="w-3.5 h-3.5"></i>
+            <span>Copy as HTML</span>
+          </button>
+          <button id="btnCopyPreview" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            <span>Copy</span>
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto p-5">
+        <div id="preview" class="text-slate-200"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <script>
+    const markdownInput = document.getElementById('markdownInput');
+    const preview = document.getElementById('preview');
+    const inputStats = document.getElementById('inputStats');
+    const btnSample = document.getElementById('btnSample');
+    const btnClear = document.getElementById('btnClear');
+    const btnCopyPreview = document.getElementById('btnCopyPreview');
+    const btnCopyHtml = document.getElementById('btnCopyHtml');
+
+    marked.setOptions({ gfm: true, breaks: false });
+
+    const sampleMarkdown = `# Markdown Previewer
+
+A live preview of **GitHub-flavored** Markdown, right in your browser.
+
+## Features
+- Headings, lists, and blockquotes
+- \`inline code\` and fenced code blocks
+- Tables
+
+| Feature | Supported |
+| --- | --- |
+| Tables | Yes |
+| Task lists | Yes |
+
+> Edit the text on the left and watch this side update instantly.
+
+\`\`\`js
+function hello() {
+  console.log("Hello, Markdown!");
+}
+\`\`\`
+
+Visit [VibeBox](index.html) for more tools.`;
+
+    function renderPreview() {
+      const raw = markdownInput.value;
+
+      const chars = raw.length;
+      const words = raw.trim() === '' ? 0 : raw.trim().split(/\s+/).length;
+      inputStats.textContent = `${words} words · ${chars} chars`;
+
+      if (!raw.trim()) {
+        preview.innerHTML = '<p class="text-slate-500 italic">Nothing to preview yet...</p>';
+        return;
+      }
+
+      try {
+        preview.innerHTML = marked.parse(raw);
+      } catch (err) {
+        preview.innerHTML = `<p class="text-rose-400 font-mono text-xs">Parsing error: ${err.message}</p>`;
+      }
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const bgClass = type === 'success' ? 'bg-emerald-900/90 border-emerald-500 text-emerald-100' :
+        type === 'error' ? 'bg-rose-900/90 border-rose-500 text-rose-100' :
+          'bg-indigo-900/90 border-indigo-500 text-indigo-100';
+      const iconName = type === 'success' ? 'check-circle' : type === 'error' ? 'alert-triangle' : 'info';
+
+      toast.className = `pointer-events-auto flex items-center gap-2 px-3.5 py-2 rounded-lg border backdrop-blur text-xs font-medium shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 max-w-xs ${bgClass}`;
+      const icon = document.createElement('i');
+      icon.dataset.lucide = iconName;
+      icon.className = 'w-4 h-4 flex-shrink-0';
+      const span = document.createElement('span');
+      span.textContent = message;
+      toast.append(icon, span);
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    markdownInput.addEventListener('input', renderPreview);
+
+    const DRAG_ACTIVE_CLASSES = ['ring-2', 'ring-indigo-500', 'ring-inset'];
+
+    ['dragenter', 'dragover'].forEach(evt => {
+      markdownInput.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        markdownInput.classList.add(...DRAG_ACTIVE_CLASSES);
+      });
+    });
+
+    ['dragleave', 'dragend'].forEach(evt => {
+      markdownInput.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        markdownInput.classList.remove(...DRAG_ACTIVE_CLASSES);
+      });
+    });
+
+    markdownInput.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      markdownInput.classList.remove(...DRAG_ACTIVE_CLASSES);
+
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file) return;
+
+      const isMarkdown = /\.(md|markdown|mdx|txt)$/i.test(file.name) ||
+        file.type === 'text/markdown' || file.type === 'text/plain' || file.type === '';
+      if (!isMarkdown) {
+        showToast('Drop a .md or .txt file', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        markdownInput.value = reader.result;
+        renderPreview();
+        showToast(`Loaded ${file.name}`, 'success');
+      };
+      reader.onerror = () => showToast('Failed to read file', 'error');
+      reader.readAsText(file);
+    });
+
+    btnSample.addEventListener('click', () => {
+      markdownInput.value = sampleMarkdown;
+      renderPreview();
+      showToast('Sample Markdown loaded', 'success');
+    });
+
+    btnClear.addEventListener('click', () => {
+      if (!markdownInput.value) return;
+      markdownInput.value = '';
+      renderPreview();
+      showToast('Editor cleared', 'info');
+    });
+
+    // Apps like Google Docs only honor inline styles when pasting HTML, render
+    // onto a white page, and don't inherit a 16px root font-size the way a
+    // browser does, so sizes are pinned to absolute pt values (Docs' own
+    // units: 11pt body text, 20/16/14/12pt headings) with Arial, Docs' default
+    // typeface, instead of the em-based sizes used for on-screen preview.
+    const INLINE_STYLE_RULES = [
+      ['h1', 'font-family:Arial,sans-serif;font-weight:700;color:#1a1a1a;font-size:20pt;margin-top:1em;margin-bottom:0.5em;'],
+      ['h2', 'font-family:Arial,sans-serif;font-weight:700;color:#1a1a1a;font-size:16pt;margin-top:1em;margin-bottom:0.5em;'],
+      ['h3', 'font-family:Arial,sans-serif;font-weight:700;color:#1a1a1a;font-size:14pt;margin-top:1em;margin-bottom:0.5em;'],
+      ['h4, h5, h6', 'font-family:Arial,sans-serif;font-weight:700;color:#1a1a1a;font-size:12pt;margin-top:1em;margin-bottom:0.5em;'],
+      ['p', 'font-family:Arial,sans-serif;font-size:11pt;margin:0.5em 0;line-height:1.4;color:#1a1a1a;'],
+      ['ul', 'font-family:Arial,sans-serif;font-size:11pt;list-style-type:disc;margin:0.5em 0 0.5em 1.5rem;color:#1a1a1a;'],
+      ['ol', 'font-family:Arial,sans-serif;font-size:11pt;list-style-type:decimal;margin:0.5em 0 0.5em 1.5rem;color:#1a1a1a;'],
+      ['li', 'margin:0.2em 0;'],
+      ['blockquote', 'font-family:Arial,sans-serif;font-size:11pt;margin:0.5em 0;padding:0.3em 1rem;border-left:3px solid #6366f1;background:#f3f4f8;color:#444444;font-style:italic;'],
+      ['pre', 'background:#f6f8fa;border:1px solid #d0d7de;padding:0.7rem;border-radius:8px;overflow-x:auto;margin:0.5em 0;font-family:"Courier New",monospace;font-size:10pt;line-height:1.4;color:#1a1a1a;'],
+      ['code', 'font-family:"Courier New",monospace;font-size:10pt;background:#f0f1f3;padding:0.1rem 0.3rem;border-radius:4px;color:#1a1a1a;'],
+      ['pre code', 'background:none;padding:0;color:#1a1a1a;'],
+      ['table', 'border-collapse:collapse;width:100%;margin:0.5em 0;font-family:Arial,sans-serif;font-size:11pt;'],
+      ['th, td', 'border:1px solid #d0d7de;padding:0.4rem 0.6rem;text-align:left;color:#1a1a1a;'],
+      ['th', 'background:#f6f8fa;font-weight:700;'],
+      ['hr', 'border:0;border-top:1px solid #d0d7de;margin:1em 0;'],
+      ['a', 'color:#1155cc;text-decoration:underline;'],
+      ['img', 'max-width:100%;border-radius:6px;'],
+    ];
+
+    function getInlineStyledHtml() {
+      const clone = preview.cloneNode(true);
+      INLINE_STYLE_RULES.forEach(([selector, style]) => {
+        clone.querySelectorAll(selector).forEach(el => {
+          el.setAttribute('style', (el.getAttribute('style') || '') + style);
+        });
+      });
+      return clone.innerHTML;
+    }
+
+    btnCopyPreview.addEventListener('click', async () => {
+      if (!preview.innerText.trim()) {
+        showToast('Nothing to copy yet', 'error');
+        return;
+      }
+
+      const html = getInlineStyledHtml();
+      const text = preview.innerText;
+
+      if (navigator.clipboard && window.ClipboardItem) {
+        try {
+          const item = new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([text], { type: 'text/plain' }),
+          });
+          await navigator.clipboard.write([item]);
+          showToast('Preview copied to clipboard', 'success');
+          return;
+        } catch (err) {
+          // Fall through to the selection-based fallback below.
+        }
+      }
+
+      // Fallback for browsers without Clipboard API/ClipboardItem support.
+      const range = document.createRange();
+      range.selectNodeContents(preview);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      try {
+        const ok = document.execCommand('copy');
+        showToast(ok ? 'Preview copied to clipboard' : 'Copy failed, try Ctrl+C', ok ? 'success' : 'error');
+      } catch (err) {
+        showToast('Copy failed: ' + err.message, 'error');
+      } finally {
+        sel.removeAllRanges();
+      }
+    });
+
+    btnCopyHtml.addEventListener('click', async () => {
+      if (!preview.innerText.trim()) {
+        showToast('Nothing to copy yet', 'error');
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(preview.innerHTML.trim());
+        showToast('HTML copied to clipboard', 'success');
+      } catch (err) {
+        showToast('Copy failed: ' + err.message, 'error');
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      markdownInput.value = sampleMarkdown;
+      renderPreview();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
