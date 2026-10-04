@@ -15,6 +15,7 @@ Every tool is a single self-contained static HTML file — no build step, no ins
 | [Palette Maker](palette_maker.html) | Build, randomize, and extract color palettes from images, then save, share via URL, and export a palette card PNG. |
 | [HSB Color Difference](hsv_color_difference.html) | Compare two colors and find the signed hue, saturation, and brightness adjustments between them. |
 | [Markdown Previewer](markdown_previewer.html) | Live GitHub-flavored Markdown preview with word/char counts and one-click HTML copy. |
+| [Image Comparator](image_comparator.html) | Compare two images with a split slider, blink toggle, or pixel difference map with change stats. |
 
 Browse them all from the [index page](index.html), which lists every tool with a short description and a link to open it.
 
