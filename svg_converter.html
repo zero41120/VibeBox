@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SVG to PNG / WebP</title>
+  <meta name="description" content="Paste or drop an SVG, preview it on a canvas, then download as PNG or WebP, or copy a transparent PNG for Photoshop." />
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Inter Font -->
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter font', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    .checker {
+      background-color: #1e293b;
+      background-image:
+        linear-gradient(45deg, #334155 25%, transparent 25%),
+        linear-gradient(-45deg, #334155 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #334155 75%),
+        linear-gradient(-45deg, transparent 75%, #334155 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    }
+  </style>
+</head>
+<body class="h-full font-sans antialiased bg-slate-950 text-slate-100 flex flex-col">
+
+  <!-- Header Section -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+          <i data-lucide="file-image" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white tracking-tight">SVG to PNG / WebP</h1>
+          <p class="text-xs text-slate-400">Paste or drop an SVG, then download it as a PNG or WebP image.</p>
+        </div>
+      </div>
+
+      <a href="index.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">All Tools</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0">
+
+    <!-- LEFT: SVG Input -->
+    <section class="flex flex-col bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden min-h-[50vh] md:min-h-0">
+      <div class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <i data-lucide="code" class="w-4 h-4 text-slate-400"></i>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">SVG Input</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="fileInput" type="file" accept=".svg,image/svg+xml" class="hidden" />
+          <button id="btnOpen" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Open</span>
+          </button>
+          <button id="btnSample" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+            <i data-lucide="wand-sparkles" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Sample</span>
+          </button>
+          <button id="btnClear" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-900 rounded-lg transition-colors">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Clear</span>
+          </button>
+        </div>
+      </div>
+      <textarea id="svgInput"
+        class="flex-1 w-full p-4 bg-slate-950 text-slate-100 font-mono text-xs leading-relaxed resize-none focus:outline-none placeholder-slate-600 transition-colors"
+        placeholder="Paste SVG markup here... (or drop a .svg file)" spellcheck="false"></textarea>
+    </section>
+
+    <!-- RIGHT: Canvas Output -->
+    <section class="flex flex-col bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden min-h-[50vh] md:min-h-0">
+      <div class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <i data-lucide="image" class="w-4 h-4 text-slate-400"></i>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Output</span>
+          <span id="sizeInfo" class="text-xs text-slate-500 font-mono"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnDownloadPng" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>PNG</span>
+          </button>
+          <button id="btnDownloadWebp" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>WebP</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Export options -->
+      <div class="px-4 py-2 border-b border-slate-800 flex items-center gap-x-4 gap-y-2 flex-wrap text-xs text-slate-400">
+        <label class="inline-flex items-center gap-1.5">
+          Scale
+          <select id="scaleSelect" class="bg-slate-800 border border-slate-700 text-slate-200 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <option value="0.5">0.5×</option>
+            <option value="1">1×</option>
+            <option value="2" selected>2×</option>
+            <option value="3">3×</option>
+            <option value="4">4×</option>
+            <option value="8">8×</option>
+          </select>
+        </label>
+        <label class="inline-flex items-center gap-1.5">
+          WebP quality
+          <input id="qualityRange" type="range" min="10" max="100" value="92" class="w-24 accent-indigo-500" />
+          <span id="qualityValue" class="font-mono text-slate-300 w-8">92</span>
+        </label>
+        <label class="inline-flex items-center gap-1.5">
+          <input id="bgToggle" type="checkbox" class="accent-indigo-500" />
+          Background
+          <input id="bgColor" type="color" value="#ffffff" disabled class="w-6 h-6 bg-transparent border border-slate-700 rounded cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" />
+        </label>
+      </div>
+
+      <div id="stage" class="checker flex-1 overflow-auto p-4 flex items-center justify-center relative">
+        <canvas id="canvas" class="hidden max-w-full max-h-full object-contain" style="max-width:100%;max-height:100%;"></canvas>
+        <p id="placeholder" class="text-slate-500 italic text-sm">Nothing to render yet...</p>
+      </div>
+      <p class="px-4 py-2 border-t border-slate-800 text-[11px] text-slate-500">Right-click the image to copy it as a transparent PNG (paste straight into Photoshop).</p>
+    </section>
+  </main>
+
+  <!-- Canvas context menu -->
+  <div id="ctxMenu" class="hidden fixed z-50 min-w-[190px] py-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl text-xs">
+    <button data-action="copy" class="w-full flex items-center gap-2 px-3 py-2 text-left text-slate-200 hover:bg-slate-700">
+      <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy image (PNG)
+    </button>
+    <button data-action="png" class="w-full flex items-center gap-2 px-3 py-2 text-left text-slate-200 hover:bg-slate-700">
+      <i data-lucide="download" class="w-3.5 h-3.5"></i> Save as PNG
+    </button>
+    <button data-action="webp" class="w-full flex items-center gap-2 px-3 py-2 text-left text-slate-200 hover:bg-slate-700">
+      <i data-lucide="download" class="w-3.5 h-3.5"></i> Save as WebP
+    </button>
+  </div>
+
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <script>
+    const svgInput = document.getElementById('svgInput');
+    const fileInput = document.getElementById('fileInput');
+    const btnOpen = document.getElementById('btnOpen');
+    const btnSample = document.getElementById('btnSample');
+    const btnClear = document.getElementById('btnClear');
+    const btnDownloadPng = document.getElementById('btnDownloadPng');
+    const btnDownloadWebp = document.getElementById('btnDownloadWebp');
+    const scaleSelect = document.getElementById('scaleSelect');
+    const qualityRange = document.getElementById('qualityRange');
+    const qualityValue = document.getElementById('qualityValue');
+    const bgToggle = document.getElementById('bgToggle');
+    const bgColor = document.getElementById('bgColor');
+    const stage = document.getElementById('stage');
+    const canvas = document.getElementById('canvas');
+    const placeholder = document.getElementById('placeholder');
+    const sizeInfo = document.getElementById('sizeInfo');
+    const ctxMenu = document.getElementById('ctxMenu');
+
+    const MAX_CANVAS_SIDE = 16384;
+    const MAX_CANVAS_AREA = 120_000_000;
+
+    const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="80" fill="url(#g)" fill-opacity="0.9"/>
+  <path d="M60 105l28 28 55-62" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+    let renderToken = 0;
+    let hasImage = false;
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const bgClass = type === 'success' ? 'bg-emerald-900/90 border-emerald-500 text-emerald-100' :
+        type === 'error' ? 'bg-rose-900/90 border-rose-500 text-rose-100' :
+          'bg-indigo-900/90 border-indigo-500 text-indigo-100';
+      const iconName = type === 'success' ? 'check-circle' : type === 'error' ? 'alert-triangle' : 'info';
+
+      toast.className = `pointer-events-auto flex items-center gap-2 px-3.5 py-2 rounded-lg border backdrop-blur text-xs font-medium shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 max-w-xs ${bgClass}`;
+      const icon = document.createElement('i');
+      icon.dataset.lucide = iconName;
+      icon.className = 'w-4 h-4 flex-shrink-0';
+      const span = document.createElement('span');
+      span.textContent = message;
+      toast.append(icon, span);
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function showEmpty(message) {
+      hasImage = false;
+      canvas.classList.add('hidden');
+      placeholder.textContent = message;
+      placeholder.classList.remove('hidden');
+      placeholder.classList.toggle('text-rose-400', message.startsWith('Invalid'));
+      placeholder.classList.toggle('text-slate-500', !message.startsWith('Invalid'));
+      sizeInfo.textContent = '';
+    }
+
+    // Returns the SVG's intrinsic size in CSS px, from width/height or the viewBox.
+    function parseSvg(text) {
+      const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+      const root = doc.documentElement;
+      if (doc.querySelector('parsererror') || root.localName !== 'svg') {
+        throw new Error('Not a valid SVG document');
+      }
+
+      const num = (v) => {
+        if (!v || v.trim().endsWith('%')) return NaN;
+        const n = parseFloat(v);
+        return n > 0 ? n : NaN;
+      };
+      let w = num(root.getAttribute('width'));
+      let h = num(root.getAttribute('height'));
+      const vb = (root.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+      const hasVb = vb.length === 4 && vb[2] > 0 && vb[3] > 0;
+
+      if (hasVb) {
+        if (isNaN(w) && isNaN(h)) { w = vb[2]; h = vb[3]; }
+        else if (isNaN(w)) w = h * vb[2] / vb[3];
+        else if (isNaN(h)) h = w * vb[3] / vb[2];
+      }
+      if (isNaN(w) || isNaN(h)) {
+        throw new Error('SVG needs a width/height or a viewBox');
+      }
+
+      if (!root.getAttribute('xmlns')) root.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      // Explicit dimensions so the browser rasterizes at the size we draw it.
+      root.setAttribute('width', w);
+      root.setAttribute('height', h);
+      return { width: w, height: h, markup: new XMLSerializer().serializeToString(root) };
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Browser could not render this SVG'));
+        img.src = src;
+      });
+    }
+
+    async function render() {
+      const text = svgInput.value.trim();
+      const token = ++renderToken;
+      if (!text) { showEmpty('Nothing to render yet...'); return; }
+
+      try {
+        const { width, height, markup } = parseSvg(text);
+        let scale = parseFloat(scaleSelect.value);
+        let cw = Math.round(width * scale);
+        let ch = Math.round(height * scale);
+
+        // Clamp to what browsers can actually allocate.
+        const clamp = Math.min(1, MAX_CANVAS_SIDE / Math.max(cw, ch), Math.sqrt(MAX_CANVAS_AREA / (cw * ch)));
+        if (clamp < 1) {
+          cw = Math.max(1, Math.floor(cw * clamp));
+          ch = Math.max(1, Math.floor(ch * clamp));
+        }
+
+        const img = await loadImage('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup));
+        if (token !== renderToken) return;
+
+        canvas.width = cw;
+        canvas.height = ch;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, cw, ch);
+        if (bgToggle.checked) {
+          ctx.fillStyle = bgColor.value;
+          ctx.fillRect(0, 0, cw, ch);
+        }
+        ctx.drawImage(img, 0, 0, cw, ch);
+
+        hasImage = true;
+        placeholder.classList.add('hidden');
+        canvas.classList.remove('hidden');
+        sizeInfo.textContent = `${cw} × ${ch} px` + (clamp < 1 ? ' (capped)' : '');
+      } catch (err) {
+        if (token !== renderToken) return;
+        showEmpty('Invalid SVG: ' + err.message);
+      }
+    }
+
+    function canvasToBlob(type, quality) {
+      return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+    }
+
+    async function downloadAs(format) {
+      if (!hasImage) { showToast('Nothing to export yet', 'error'); return; }
+      const isWebp = format === 'webp';
+      const blob = await canvasToBlob(isWebp ? 'image/webp' : 'image/png', parseInt(qualityRange.value, 10) / 100);
+      if (!blob || (isWebp && blob.type !== 'image/webp')) {
+        showToast('This browser cannot export WebP', 'error');
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `image.${isWebp ? 'webp' : 'png'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`Downloaded ${a.download}`, 'success');
+    }
+
+    async function copyImage() {
+      if (!hasImage) { showToast('Nothing to copy yet', 'error'); return; }
+      if (!navigator.clipboard || !window.ClipboardItem) {
+        showToast('Clipboard images are not supported here', 'error');
+        return;
+      }
+      try {
+        // The promise form keeps the user-gesture valid in Safari.
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': canvasToBlob('image/png') })]);
+        showToast('Copied PNG to clipboard', 'success');
+      } catch (err) {
+        showToast('Copy failed: ' + err.message, 'error');
+      }
+    }
+
+    function loadSvgText(text, label) {
+      svgInput.value = text;
+      render();
+      if (label) showToast(`Loaded ${label}`, 'success');
+    }
+
+    function readFile(file) {
+      const isSvg = /\.svg$/i.test(file.name) || file.type === 'image/svg+xml';
+      if (!isSvg) { showToast('Drop a .svg file', 'error'); return; }
+      const reader = new FileReader();
+      reader.onload = () => loadSvgText(reader.result, file.name);
+      reader.onerror = () => showToast('Failed to read file', 'error');
+      reader.readAsText(file);
+    }
+
+    // --- Input wiring ---
+    svgInput.addEventListener('input', render);
+    scaleSelect.addEventListener('change', render);
+    bgColor.addEventListener('input', render);
+    bgToggle.addEventListener('change', () => {
+      bgColor.disabled = !bgToggle.checked;
+      render();
+    });
+    qualityRange.addEventListener('input', () => { qualityValue.textContent = qualityRange.value; });
+
+    btnOpen.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) readFile(fileInput.files[0]);
+      fileInput.value = '';
+    });
+    btnSample.addEventListener('click', () => loadSvgText(sampleSvg, 'sample SVG'));
+    btnClear.addEventListener('click', () => {
+      if (!svgInput.value) return;
+      svgInput.value = '';
+      render();
+      showToast('Input cleared', 'info');
+    });
+
+    btnDownloadPng.addEventListener('click', () => downloadAs('png'));
+    btnDownloadWebp.addEventListener('click', () => downloadAs('webp'));
+
+    // --- Drag & drop ---
+    const DRAG_ACTIVE_CLASSES = ['ring-2', 'ring-indigo-500', 'ring-inset'];
+
+    ['dragenter', 'dragover'].forEach(evt => {
+      svgInput.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        svgInput.classList.add(...DRAG_ACTIVE_CLASSES);
+      });
+    });
+
+    ['dragleave', 'dragend'].forEach(evt => {
+      svgInput.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        svgInput.classList.remove(...DRAG_ACTIVE_CLASSES);
+      });
+    });
+
+    svgInput.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      svgInput.classList.remove(...DRAG_ACTIVE_CLASSES);
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) readFile(file);
+    });
+
+    // Keep stray drops elsewhere on the page from navigating away.
+    ['dragover', 'drop'].forEach(evt => window.addEventListener(evt, (e) => e.preventDefault()));
+
+    // --- Right-click menu on the output ---
+    function hideMenu() { ctxMenu.classList.add('hidden'); }
+
+    stage.addEventListener('contextmenu', (e) => {
+      if (!hasImage) return;
+      e.preventDefault();
+      ctxMenu.classList.remove('hidden');
+      const { offsetWidth: mw, offsetHeight: mh } = ctxMenu;
+      ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - mw - 8) + 'px';
+      ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - mh - 8) + 'px';
+    });
+
+    ctxMenu.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      hideMenu();
+      const action = btn.dataset.action;
+      if (action === 'copy') copyImage();
+      else downloadAs(action);
+    });
+
+    document.addEventListener('click', (e) => { if (!ctxMenu.contains(e.target)) hideMenu(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideMenu(); });
+    window.addEventListener('scroll', hideMenu, true);
+    window.addEventListener('resize', hideMenu);
+
+    window.addEventListener('DOMContentLoaded', () => {
+      svgInput.value = sampleSvg;
+      render();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
