@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Batch WebP Converter — VibeBox</title>
+  <meta name="description" content="Convert PNG, JPG, and WebP images locally, compare 100% and 99% sizes, cap pixel area, and download a ZIP." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter font', 'sans-serif'] } } } };
+  </script>
+  <style>
+    .checker { background-color: #1e293b; background-image: conic-gradient(#334155 25%, transparent 0 50%, #334155 0 75%, transparent 0); background-size: 16px 16px; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    #dropZone.dragging { border-color: #818cf8; background: #1e1b4b; }
+  </style>
+</head>
+<body class="min-h-full font-sans antialiased bg-slate-950 text-slate-100">
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+          <i data-lucide="images" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white tracking-tight">Batch WebP Converter</h1>
+          <p class="text-xs text-slate-400">Compare quality sizes, limit pixel area, and export a ZIP.</p>
+        </div>
+      </div>
+      <a href="index.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">All Tools</span>
+      </a>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-4">
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+      <div id="dropZone" class="border-2 border-dashed border-slate-700 rounded-xl p-8 text-center transition-colors">
+        <i data-lucide="upload" class="w-8 h-8 mx-auto text-indigo-400 mb-3"></i>
+        <h2 class="font-semibold">Drop a batch of images here</h2>
+        <p class="text-xs text-slate-400 mt-1 mb-4">PNG, JPG, and WebP · processed locally · files are never uploaded</p>
+        <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" multiple hidden />
+        <button id="chooseButton" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 rounded-lg">Choose images</button>
+      </div>
+      <div class="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input id="resizeOption" type="checkbox" class="mt-1 accent-indigo-500" />
+          <span>Limit to 4.19 MP<span class="block text-xs text-slate-400">2048 × 2048 total pixels; preserve aspect ratio, never upscale.</span></span>
+        </label>
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input id="qualityOption" type="checkbox" class="mt-1 accent-indigo-500" />
+          <span>Use 99% quality<span class="block text-xs text-slate-400">Unchecked exports at 100%. Both sizes are always computed.</span></span>
+        </label>
+      </div>
+      <p class="text-xs text-slate-500">PNG/JPG/WebP → ImageBitmap → WebGL texture → canvas → WebP. Transparency is preserved. 100% quality does not guarantee lossless WebP. Animated inputs export a single frame.</p>
+    </section>
+
+    <section class="flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-xl p-4">
+      <div>
+        <p id="status" class="text-sm text-slate-300">Add images to begin.</p>
+        <p id="totals" class="text-xs text-slate-400 mt-1">Export quality: 100%</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="clearButton" disabled class="px-3 py-2 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg">Clear batch</button>
+        <button id="downloadButton" disabled class="px-3 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 rounded-lg">Download all as ZIP</button>
+      </div>
+    </section>
+    <div id="imageGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </main>
+
+  <template id="imageTemplate">
+    <article class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+      <div class="checker h-52 flex items-center justify-center"><img class="max-w-full max-h-full object-contain" alt="Converted image preview" /></div>
+      <div class="p-4 space-y-2 text-xs">
+        <h2 class="font-semibold text-sm text-white break-all" data-field="name"></h2>
+        <p class="text-slate-400" data-field="dimensions">Waiting…</p>
+        <dl class="grid grid-cols-2 gap-2 text-slate-400">
+          <dt>Original file</dt><dd class="text-right" data-field="original"></dd>
+          <dt>WebP · 100%</dt><dd class="text-right" data-field="full">—</dd>
+          <dt>WebP · 99%</dt><dd class="text-right" data-field="compact">—</dd>
+        </dl>
+        <p class="text-indigo-300" data-field="selected">Waiting…</p>
+      </div>
+    </article>
+  </template>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const chooseButton = document.getElementById('chooseButton');
+    const dropZone = document.getElementById('dropZone');
+    const resizeOption = document.getElementById('resizeOption');
+    const qualityOption = document.getElementById('qualityOption');
+    const clearButton = document.getElementById('clearButton');
+    const downloadButton = document.getElementById('downloadButton');
+    const status = document.getElementById('status');
+    const totals = document.getElementById('totals');
+    const imageGrid = document.getElementById('imageGrid');
+    const MAX_PIXELS = 2048 * 2048;
+    let items = [];
+    let busy = false;
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+      return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
+    }
+
+    function setField(item, field, value) {
+      item.card.querySelector(`[data-field="${field}"]`).textContent = value;
+    }
+
+    function selectedBlob(item) {
+      return qualityOption.checked ? item.compact : item.full;
+    }
+
+    function updateControls() {
+      const ready = items.filter(item => item.full);
+      chooseButton.disabled = busy;
+      fileInput.disabled = busy;
+      resizeOption.disabled = busy;
+      qualityOption.disabled = busy;
+      clearButton.disabled = busy || items.length === 0;
+      downloadButton.disabled = busy || ready.length === 0;
+      const bytes = ready.reduce((sum, item) => sum + selectedBlob(item).size, 0);
+      const quality = qualityOption.checked ? 99 : 100;
+      totals.textContent = `${ready.length}/${items.length} ready · Export quality: ${quality}% · Selected files: ${formatSize(bytes)} (before ZIP)`;
+    }
+
+    function updatePreview(item) {
+      if (!item.full) return;
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      const blob = selectedBlob(item);
+      item.previewUrl = URL.createObjectURL(blob);
+      item.card.querySelector('img').src = item.previewUrl;
+      const difference = (1 - blob.size / item.file.size) * 100;
+      const percent = Math.abs(difference).toFixed(1);
+      const comparison = difference >= 0 ? 'smaller' : 'larger';
+      setField(item, 'selected', `Selected: ${qualityOption.checked ? 99 : 100}% · ${percent}% ${comparison} than original`);
+    }
+
+    function createItem(file) {
+      const card = document.getElementById('imageTemplate').content.firstElementChild.cloneNode(true);
+      const item = { file, card, full: null, compact: null, previewUrl: null };
+      setField(item, 'name', file.name);
+      setField(item, 'original', formatSize(file.size));
+      imageGrid.appendChild(card);
+      return item;
+    }
+
+    function compileShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+      const message = gl.getShaderInfoLog(shader);
+      gl.deleteShader(shader);
+      throw new Error(`WebGL shader failed: ${message}`);
+    }
+
+    function renderTexture(canvas, bitmap, width, height) {
+      const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
+      if (!gl) throw new Error('WebGL unavailable. Enable hardware acceleration or use a supported browser.');
+      try {
+        const maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+        const maxViewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+        if (Math.max(bitmap.width, bitmap.height) > maxTexture) {
+          throw new Error(`Source exceeds this GPU's ${maxTexture}px texture edge limit.`);
+        }
+        if (width > maxViewport[0] || height > maxViewport[1]) {
+          throw new Error('Output exceeds the GPU viewport limit. Enable the pixel-area limit.');
+        }
+        canvas.width = width;
+        canvas.height = height;
+        if (gl.drawingBufferWidth !== width || gl.drawingBufferHeight !== height) {
+          throw new Error('Browser could not allocate the requested canvas dimensions.');
+        }
+        const vertex = compileShader(gl, gl.VERTEX_SHADER, `
+          attribute vec2 position;
+          varying vec2 uv;
+          void main() {
+            uv = vec2((position.x + 1.0) * 0.5, (1.0 - position.y) * 0.5);
+            gl_Position = vec4(position, 0.0, 1.0);
+          }
+        `);
+        const fragment = compileShader(gl, gl.FRAGMENT_SHADER, `
+          precision mediump float;
+          varying vec2 uv;
+          uniform sampler2D image;
+          void main() { gl_FragColor = texture2D(image, uv); }
+        `);
+        const program = gl.createProgram();
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('WebGL program could not link.');
+        gl.useProgram(program);
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+        const position = gl.getAttribLocation(program, 'position');
+        gl.enableVertexAttribArray(position);
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
+        gl.viewport(0, 0, width, height);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        if (gl.isContextLost()) throw new Error('WebGL context lost. Try a smaller batch or image.');
+        if (gl.getError() !== gl.NO_ERROR) throw new Error('GPU could not upload or render this image.');
+      } catch (error) {
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
+        throw error;
+      }
+      return gl;
+    }
+
+    function encodeWebP(canvas, quality) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+          if (!blob || blob.type !== 'image/webp') {
+            reject(new Error('This browser could not export WebP. Try a current Chrome, Firefox, or Edge.'));
+            return;
+          }
+          resolve(blob);
+        }, 'image/webp', quality);
+      });
+    }
+
+    async function convertItem(item) {
+      let bitmap;
+      let gl;
+      const canvas = document.createElement('canvas');
+      try {
+        if (!window.createImageBitmap) throw new Error('This browser does not support ImageBitmap.');
+        bitmap = await createImageBitmap(item.file, { premultiplyAlpha: 'none' });
+        const area = bitmap.width * bitmap.height;
+        const scale = resizeOption.checked ? Math.min(1, Math.sqrt(MAX_PIXELS / area)) : 1;
+        const width = Math.max(1, Math.floor(bitmap.width * scale));
+        const height = Math.max(1, Math.floor(bitmap.height * scale));
+        setField(item, 'dimensions', `${bitmap.width} × ${bitmap.height} → ${width} × ${height} px · ${(width * height / 1e6).toFixed(2)} MP`);
+        setField(item, 'selected', 'Encoding 100% and 99%…');
+        gl = renderTexture(canvas, bitmap, width, height);
+        item.full = await encodeWebP(canvas, 1);
+        item.compact = await encodeWebP(canvas, 0.99);
+        setField(item, 'full', formatSize(item.full.size));
+        setField(item, 'compact', formatSize(item.compact.size));
+        updatePreview(item);
+      } catch (error) {
+        item.full = null;
+        item.compact = null;
+        setField(item, 'selected', `Failed: ${error.message}`);
+        item.card.querySelector('[data-field="selected"]').classList.add('text-rose-400');
+      } finally {
+        bitmap?.close();
+        gl?.getExtension('WEBGL_lose_context')?.loseContext();
+        canvas.width = 1;
+        canvas.height = 1;
+      }
+    }
+
+    async function processItems(batch) {
+      busy = true;
+      updateControls();
+      for (const [index, item] of batch.entries()) {
+        status.textContent = `Processing ${index + 1}/${batch.length}: ${item.file.name}`;
+        await convertItem(item);
+        updateControls();
+      }
+      busy = false;
+      const failed = items.filter(item => !item.full).length;
+      status.textContent = `Finished · ${items.length - failed} converted · ${failed} failed`;
+      updateControls();
+    }
+
+    async function addFiles(files) {
+      if (busy) return;
+      const supported = Array.from(files).filter(file => /\.(png|jpe?g|webp)$/i.test(file.name) || /^image\/(png|jpeg|webp)$/.test(file.type));
+      if (!supported.length) {
+        status.textContent = 'No supported images. Choose PNG, JPG, or WebP files.';
+        return;
+      }
+      const batch = supported.map(createItem);
+      items.push(...batch);
+      await processItems(batch);
+      const skipped = files.length - supported.length;
+      if (skipped) status.textContent += ` · ${skipped} unsupported files skipped`;
+    }
+
+    function resetItem(item) {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      item.previewUrl = null;
+      item.full = null;
+      item.compact = null;
+      item.card.querySelector('img').removeAttribute('src');
+      item.card.querySelector('[data-field="selected"]').classList.remove('text-rose-400');
+      setField(item, 'full', '—');
+      setField(item, 'compact', '—');
+      setField(item, 'selected', 'Waiting…');
+    }
+
+    function zipFilename(file, used) {
+      const base = file.name.replace(/\.[^.]+$/, '').replace(/[\\/\x00-\x1f]/g, '_') || 'image';
+      let name = `${base}.webp`;
+      let suffix = 2;
+      while (used.has(name.toLowerCase())) name = `${base} (${suffix++}).webp`;
+      used.add(name.toLowerCase());
+      return name;
+    }
+
+    async function downloadZip() {
+      if (busy) return;
+      if (!window.JSZip) {
+        status.textContent = 'ZIP library did not load. Check your connection and reload the page.';
+        return;
+      }
+      busy = true;
+      updateControls();
+      try {
+        const zip = new JSZip();
+        const used = new Set();
+        items.filter(item => item.full).forEach(item => {
+          zip.file(zipFilename(item.file, used), selectedBlob(item));
+        });
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, progress => {
+          status.textContent = `Creating ZIP… ${Math.round(progress.percent)}%`;
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `webp-images-${qualityOption.checked ? 99 : 100}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        status.textContent = `ZIP ready · ${formatSize(blob.size)} · Download started`;
+      } catch (error) {
+        status.textContent = `ZIP failed: ${error.message}`;
+      } finally {
+        busy = false;
+        updateControls();
+      }
+    }
+
+    chooseButton.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      addFiles(Array.from(fileInput.files));
+      fileInput.value = '';
+    });
+    resizeOption.addEventListener('change', () => {
+      items.forEach(resetItem);
+      if (items.length) processItems(items);
+    });
+    qualityOption.addEventListener('change', () => {
+      items.forEach(updatePreview);
+      updateControls();
+    });
+    clearButton.addEventListener('click', () => {
+      items.forEach(resetItem);
+      items = [];
+      imageGrid.replaceChildren();
+      status.textContent = 'Batch cleared. Add images to begin.';
+      updateControls();
+    });
+    downloadButton.addEventListener('click', downloadZip);
+    ['dragover', 'drop'].forEach(event => window.addEventListener(event, e => e.preventDefault()));
+    ['dragenter', 'dragover'].forEach(event => dropZone.addEventListener(event, e => {
+      e.preventDefault();
+      if (busy) return;
+      dropZone.classList.add('dragging');
+      e.dataTransfer.dropEffect = 'copy';
+    }));
+    dropZone.addEventListener('dragleave', e => {
+      if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('dragging');
+    });
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragging');
+      addFiles(Array.from(e.dataTransfer.files));
+    });
+    updateControls();
+    if (window.lucide) lucide.createIcons();
+  </script>
+</body>
+</html>

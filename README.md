@@ -17,6 +17,7 @@ Every tool is a single self-contained static HTML file — no build step, no ins
 | [Markdown Previewer](markdown_previewer.html) | Live GitHub-flavored Markdown preview with word/char counts and one-click HTML copy. |
 | [Image Comparator](image_comparator.html) | Compare two images with a split slider, blink toggle, or pixel difference map with change stats. |
 | [SVG to PNG / WebP](svg_converter.html) | Paste or drop an SVG, preview it on a canvas, download as PNG or WebP, or right-click to copy a transparent PNG. |
+| [Batch WebP Converter](batch_webp_converter.html) | Drop PNG, JPG, or WebP images, optionally cap total area at 4.19 MP, compare encoded sizes at 100% and 99% quality, and download selected outputs as a ZIP. |
 
 Browse them all from the [index page](index.html), which lists every tool with a short description and a link to open it.
 
