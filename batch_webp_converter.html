@@ -4,9 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Batch WebP Converter — VibeBox</title>
-  <meta name="description" content="Convert PNG, JPG, and WebP images locally, compare 100% and 99% sizes, cap pixel area, and download a ZIP." />
+  <meta name="description" content="Convert PNG, JPG, and WebP images locally, adjust quality and size per image, and download WebP files or a ZIP." />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/openseadragon.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
   <script>
@@ -14,6 +15,12 @@
   </script>
   <style>
     .checker { background-color: #1e293b; background-image: conic-gradient(#334155 25%, transparent 0 50%, #334155 0 75%, transparent 0); background-size: 16px 16px; }
+    #previewDialog::backdrop { background: rgb(2 6 23 / .85); }
+    #previewDialog article { display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
+    #previewDialog article > .checker { height: 75vh; cursor: default; }
+    #previewDialog article > .checker img { display: none; }
+    #previewDialog article > .checker > div { width: 100%; height: 100%; }
+    @media (max-width: 767px) { #previewDialog article { grid-template-columns: 1fr; } #previewDialog article > .checker { height: 55vh; } }
     button:disabled { opacity: .4; cursor: not-allowed; }
     #dropZone.dragging { border-color: #818cf8; background: #1e1b4b; }
   </style>
@@ -27,7 +34,7 @@
         </div>
         <div>
           <h1 class="text-lg font-bold text-white tracking-tight">Batch WebP Converter</h1>
-          <p class="text-xs text-slate-400">Compare quality sizes, limit pixel area, and export a ZIP.</p>
+          <p class="text-xs text-slate-400">Adjust quality and size, then download WebP files or a ZIP.</p>
         </div>
       </div>
       <a href="index.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
@@ -49,11 +56,7 @@
       <div class="flex flex-wrap gap-x-8 gap-y-3 text-sm">
         <label class="flex items-start gap-2 cursor-pointer">
           <input id="resizeOption" type="checkbox" class="mt-1 accent-indigo-500" />
-          <span>Limit to 4.19 MP<span class="block text-xs text-slate-400">2048 × 2048 total pixels; preserve aspect ratio, never upscale.</span></span>
-        </label>
-        <label class="flex items-start gap-2 cursor-pointer">
-          <input id="qualityOption" type="checkbox" class="mt-1 accent-indigo-500" />
-          <span>Use 99% quality<span class="block text-xs text-slate-400">Unchecked exports at 100%. Both sizes are always computed.</span></span>
+          <span>Apply 2K preset · 4.19 MP<span class="block text-xs text-slate-400">2048 × 2048 total pixels; applies to all cards and new images.</span></span>
         </label>
       </div>
       <p class="text-xs text-slate-500">PNG/JPG/WebP → ImageBitmap → WebGL texture → canvas → WebP. Transparency is preserved. 100% quality does not guarantee lossless WebP. Animated inputs export a single frame.</p>
@@ -62,7 +65,7 @@
     <section class="flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-xl p-4">
       <div>
         <p id="status" class="text-sm text-slate-300">Add images to begin.</p>
-        <p id="totals" class="text-xs text-slate-400 mt-1">Export quality: 100%</p>
+        <p id="totals" class="text-xs text-slate-400 mt-1">Each image has independent quality and size controls.</p>
       </div>
       <div class="flex gap-2">
         <button id="clearButton" disabled class="px-3 py-2 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg">Clear batch</button>
@@ -72,18 +75,35 @@
     <div id="imageGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
   </main>
 
+  <dialog id="previewDialog" class="w-[96vw] max-w-none max-h-[95vh] p-0 bg-slate-900 text-slate-100 rounded-xl border border-slate-700">
+    <div class="flex items-center justify-between gap-3 p-3 text-xs text-slate-400">
+      <span>Drag to pan · Scroll to zoom · Release a slider to update the preview</span>
+      <button id="closePreview" class="px-3 py-2 bg-slate-800 text-slate-100 rounded-lg">Close</button>
+    </div>
+    <div id="previewContent"></div>
+  </dialog>
+
   <template id="imageTemplate">
     <article class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div class="checker h-52 flex items-center justify-center"><img class="max-w-full max-h-full object-contain" alt="Converted image preview" /></div>
+      <div class="checker h-52 flex items-center justify-center cursor-zoom-in" title="Click to inspect quality"><img class="max-w-full max-h-full object-contain" alt="Converted image preview" /></div>
       <div class="p-4 space-y-2 text-xs">
         <h2 class="font-semibold text-sm text-white break-all" data-field="name"></h2>
         <p class="text-slate-400" data-field="dimensions">Waiting…</p>
         <dl class="grid grid-cols-2 gap-2 text-slate-400">
           <dt>Original file</dt><dd class="text-right" data-field="original"></dd>
-          <dt>WebP · 100%</dt><dd class="text-right" data-field="full">—</dd>
-          <dt>WebP · 99%</dt><dd class="text-right" data-field="compact">—</dd>
+          <dt>Selected WebP</dt><dd class="text-right" data-field="output">—</dd>
         </dl>
+        <label class="block space-y-1">
+          <span class="flex justify-between">Quality <span data-field="quality">100%</span></span>
+          <input data-control="quality" type="range" min="1" max="100" value="100" disabled class="w-full accent-indigo-500" />
+        </label>
+        <label class="block space-y-1">
+          <span class="flex justify-between">Size <span data-field="scale">100%</span></span>
+          <input data-control="scale" type="range" min="1" max="100" step="1" value="100" disabled class="w-full accent-indigo-500" />
+        </label>
+        <button data-control="preset" disabled class="text-indigo-300 hover:text-indigo-200 underline">2K preset: waiting…</button>
         <p class="text-indigo-300" data-field="selected">Waiting…</p>
+        <button data-control="download" disabled class="w-full px-3 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 rounded-lg">Download WebP</button>
       </div>
     </article>
   </template>
@@ -93,7 +113,6 @@
     const chooseButton = document.getElementById('chooseButton');
     const dropZone = document.getElementById('dropZone');
     const resizeOption = document.getElementById('resizeOption');
-    const qualityOption = document.getElementById('qualityOption');
     const clearButton = document.getElementById('clearButton');
     const downloadButton = document.getElementById('downloadButton');
     const status = document.getElementById('status');
@@ -102,6 +121,33 @@
     const MAX_PIXELS = 2048 * 2048;
     let items = [];
     let busy = false;
+    const previewDialog = document.getElementById('previewDialog');
+    let inspection = null;
+
+    function openPreview(item) {
+      if (!item.blob || inspection) return;
+      if (!window.OpenSeadragon) { status.textContent = 'Image viewer did not load. Reload to try again.'; return; }
+      const placeholder = document.createComment('Image card');
+      item.card.replaceWith(placeholder);
+      document.getElementById('previewContent').appendChild(item.card);
+      const element = document.createElement('div');
+      item.card.firstElementChild.appendChild(element);
+      previewDialog.showModal();
+      const enableAlpha = { unpackWithPremultipliedAlpha: true };
+      const viewer = OpenSeadragon({ element, drawerOptions: { webgl: enableAlpha }, preserveViewport: true, showNavigationControl: false, gestureSettingsMouse: { clickToZoom: false, scrollToZoom: true }, visibilityRatio: 1, minZoomImageRatio: 0.8, maxZoomPixelRatio: 6, zoomPerScroll: 1.6 });
+      inspection = { item, placeholder, viewer, element };
+      viewer.open({ type: 'image', url: item.previewUrl });
+    }
+
+    document.getElementById('closePreview').addEventListener('click', () => previewDialog.close());
+    previewDialog.addEventListener('close', () => {
+      if (!inspection) return;
+      const { item, placeholder, viewer, element } = inspection;
+      viewer.destroy();
+      element.remove();
+      placeholder.replaceWith(item.card);
+      inspection = null;
+    });
 
     function formatSize(bytes) {
       if (bytes < 1024) return `${bytes} B`;
@@ -113,42 +159,87 @@
       item.card.querySelector(`[data-field="${field}"]`).textContent = value;
     }
 
-    function selectedBlob(item) {
-      return qualityOption.checked ? item.compact : item.full;
-    }
-
     function updateControls() {
-      const ready = items.filter(item => item.full);
+      const ready = items.filter(item => item.blob);
       chooseButton.disabled = busy;
       fileInput.disabled = busy;
       resizeOption.disabled = busy;
-      qualityOption.disabled = busy;
+      items.forEach(item => {
+        item.card.querySelectorAll('[data-control]').forEach(control => {
+          const isDownload = control.dataset.control === 'download';
+          const unavailable = isDownload ? !item.blob : !item.initialized;
+          control.disabled = busy || unavailable;
+        });
+      });
       clearButton.disabled = busy || items.length === 0;
       downloadButton.disabled = busy || ready.length === 0;
-      const bytes = ready.reduce((sum, item) => sum + selectedBlob(item).size, 0);
-      const quality = qualityOption.checked ? 99 : 100;
-      totals.textContent = `${ready.length}/${items.length} ready · Export quality: ${quality}% · Selected files: ${formatSize(bytes)} (before ZIP)`;
+      const bytes = ready.reduce((sum, item) => sum + item.blob.size, 0);
+      totals.textContent = `${ready.length}/${items.length} ready · Selected files: ${formatSize(bytes)} (before ZIP)`;
     }
 
     function updatePreview(item) {
-      if (!item.full) return;
+      if (!item.blob) return;
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-      const blob = selectedBlob(item);
+      const blob = item.blob;
       item.previewUrl = URL.createObjectURL(blob);
       item.card.querySelector('img').src = item.previewUrl;
+      if (inspection?.item === item) {
+        inspection.viewer.open({ type: 'image', url: item.previewUrl });
+      }
       const difference = (1 - blob.size / item.file.size) * 100;
       const percent = Math.abs(difference).toFixed(1);
       const comparison = difference >= 0 ? 'smaller' : 'larger';
-      setField(item, 'selected', `Selected: ${qualityOption.checked ? 99 : 100}% · ${percent}% ${comparison} than original`);
+      setField(item, 'selected', `Selected: ${item.quality}% · ${percent}% ${comparison} than original`);
     }
 
     function createItem(file) {
       const card = document.getElementById('imageTemplate').content.firstElementChild.cloneNode(true);
-      const item = { file, card, full: null, compact: null, previewUrl: null };
+      const item = { file, card, blob: null, previewUrl: null, quality: 100, scale: 1, presetScale: 1 };
+      ['quality', 'scale'].forEach(control => {
+        const slider = card.querySelector(`[data-control="${control}"]`);
+        slider.addEventListener('input', () => {
+          if (control === 'quality') item.quality = Number(slider.value);
+          if (control === 'scale') item.scale = Number(slider.value) / 100;
+          updateSliders(item);
+        });
+        slider.addEventListener('change', () => processItems([item]));
+      });
+      card.querySelector('[data-control="preset"]').addEventListener('click', () => {
+        item.scale = item.presetScale;
+        updateSliders(item);
+        processItems([item]);
+      });
+      card.querySelector('[data-control="download"]').addEventListener('click', () => {
+        if (busy || !item.blob) return;
+        downloadBlob(item.blob, zipFilename(item.file, new Set()));
+      });
+      card.firstElementChild.addEventListener('click', () => openPreview(item));
       setField(item, 'name', file.name);
       setField(item, 'original', formatSize(file.size));
       imageGrid.appendChild(card);
       return item;
+    }
+
+    function updateSliders(item) {
+      setField(item, 'quality', `${item.quality}%`);
+      const width = Math.max(1, Math.floor(item.originalWidth * item.scale));
+      const height = Math.max(1, Math.floor(item.originalHeight * item.scale));
+      const percent = Number((item.scale * 100).toFixed(2));
+      setField(item, 'scale', `${percent}% · ${width} × ${height} px`);
+      item.card.querySelector('[data-control="quality"]').value = item.quality;
+      const scaleSlider = item.card.querySelector('[data-control="scale"]');
+      scaleSlider.value = item.scale * 100;
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
 
     function compileShader(gl, type, source) {
@@ -241,21 +332,27 @@
       try {
         if (!window.createImageBitmap) throw new Error('This browser does not support ImageBitmap.');
         bitmap = await createImageBitmap(item.file, { premultiplyAlpha: 'none' });
+        item.originalWidth = bitmap.width;
+        item.originalHeight = bitmap.height;
         const area = bitmap.width * bitmap.height;
-        const scale = resizeOption.checked ? Math.min(1, Math.sqrt(MAX_PIXELS / area)) : 1;
-        const width = Math.max(1, Math.floor(bitmap.width * scale));
-        const height = Math.max(1, Math.floor(bitmap.height * scale));
-        setField(item, 'dimensions', `${bitmap.width} × ${bitmap.height} → ${width} × ${height} px · ${(width * height / 1e6).toFixed(2)} MP`);
-        setField(item, 'selected', 'Encoding 100% and 99%…');
+        item.presetScale = Math.min(1, Math.sqrt(MAX_PIXELS / area));
+        if (!item.initialized) {
+          item.scale = resizeOption.checked ? item.presetScale : 1;
+          item.initialized = true;
+        }
+        updateSliders(item);
+        const width = Math.max(1, Math.floor(bitmap.width * item.scale));
+        const height = Math.max(1, Math.floor(bitmap.height * item.scale));
+        const scalePercent = (item.scale * 100).toFixed(2);
+        setField(item, 'dimensions', `${bitmap.width} × ${bitmap.height} → ${width} × ${height} px · ${scalePercent}% of original width/height · ${(width * height / 1e6).toFixed(2)} MP`);
+        item.card.querySelector('[data-control="preset"]').textContent = `Apply 2K preset · ${(item.presetScale * 100).toFixed(2)}% of original width/height`;
+        setField(item, 'selected', `Encoding ${item.quality}%…`);
         gl = renderTexture(canvas, bitmap, width, height);
-        item.full = await encodeWebP(canvas, 1);
-        item.compact = await encodeWebP(canvas, 0.99);
-        setField(item, 'full', formatSize(item.full.size));
-        setField(item, 'compact', formatSize(item.compact.size));
+        item.blob = await encodeWebP(canvas, item.quality / 100);
+        setField(item, 'output', formatSize(item.blob.size));
         updatePreview(item);
       } catch (error) {
-        item.full = null;
-        item.compact = null;
+        resetItem(item);
         setField(item, 'selected', `Failed: ${error.message}`);
         item.card.querySelector('[data-field="selected"]').classList.add('text-rose-400');
       } finally {
@@ -267,15 +364,17 @@
     }
 
     async function processItems(batch) {
+      if (busy) return;
       busy = true;
       updateControls();
       for (const [index, item] of batch.entries()) {
+        item.card.querySelector('[data-field="selected"]').classList.remove('text-rose-400');
         status.textContent = `Processing ${index + 1}/${batch.length}: ${item.file.name}`;
         await convertItem(item);
         updateControls();
       }
       busy = false;
-      const failed = items.filter(item => !item.full).length;
+      const failed = items.filter(item => !item.blob).length;
       status.textContent = `Finished · ${items.length - failed} converted · ${failed} failed`;
       updateControls();
     }
@@ -297,12 +396,10 @@
     function resetItem(item) {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       item.previewUrl = null;
-      item.full = null;
-      item.compact = null;
+      item.blob = null;
       item.card.querySelector('img').removeAttribute('src');
       item.card.querySelector('[data-field="selected"]').classList.remove('text-rose-400');
-      setField(item, 'full', '—');
-      setField(item, 'compact', '—');
+      setField(item, 'output', '—');
       setField(item, 'selected', 'Waiting…');
     }
 
@@ -326,20 +423,13 @@
       try {
         const zip = new JSZip();
         const used = new Set();
-        items.filter(item => item.full).forEach(item => {
-          zip.file(zipFilename(item.file, used), selectedBlob(item));
+        items.filter(item => item.blob).forEach(item => {
+          zip.file(zipFilename(item.file, used), item.blob);
         });
         const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, progress => {
           status.textContent = `Creating ZIP… ${Math.round(progress.percent)}%`;
         });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `webp-images-${qualityOption.checked ? 99 : 100}.zip`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        downloadBlob(blob, 'webp-images.zip');
         status.textContent = `ZIP ready · ${formatSize(blob.size)} · Download started`;
       } catch (error) {
         status.textContent = `ZIP failed: ${error.message}`;
@@ -355,12 +445,11 @@
       fileInput.value = '';
     });
     resizeOption.addEventListener('change', () => {
-      items.forEach(resetItem);
+      items.forEach(item => {
+        item.scale = resizeOption.checked ? item.presetScale : 1;
+        updateSliders(item);
+      });
       if (items.length) processItems(items);
-    });
-    qualityOption.addEventListener('change', () => {
-      items.forEach(updatePreview);
-      updateControls();
     });
     clearButton.addEventListener('click', () => {
       items.forEach(resetItem);
