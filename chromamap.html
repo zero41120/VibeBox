@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en" class="dark bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChromaMap — Spatial Palette Extractor</title>
+  <meta name="description" content="Extract image colors and see where they live with spatial pins and color-region overlays. Images stay in your browser.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+  <style>
+    input[type="range"] { accent-color: #818cf8; cursor: pointer; }
+    button, label[for="fileInput"] { cursor: pointer; }
+    button:disabled { opacity: .4; cursor: wait; }
+    .action { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .5rem .75rem; border: 1px solid #334155; border-radius: .6rem; background: #1e293b; font-size: .75rem; font-weight: 500; }
+    .action:hover { background: #334155; }
+    .action.primary, .mode.active { background: #4f46e5; border-color: #6366f1; color: white; }
+    .mode { padding: .5rem .75rem; border-radius: .5rem; color: #94a3b8; font-size: .75rem; }
+    .swatch { width: 100%; display: flex; align-items: center; gap: .75rem; padding: .65rem; border: 1px solid #1e293b; border-radius: .75rem; background: #020617; }
+    .swatch:hover { background: #1e293b; }
+    .swatch.selected { border-color: #818cf8; background: #1e1b4b; }
+    #dropZone.dragging { border-color: #818cf8; background: #1e1b4b; }
+    #canvasStage { width: 100%; }
+    #baseCanvas { display: block; width: 100%; height: auto; }
+    #overlayCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30"><i data-lucide="map-pin" class="w-5 h-5"></i></div>
+        <div><h1 class="text-base font-bold text-white tracking-tight leading-tight">ChromaMap</h1><p class="text-xs text-slate-400">Extract colors. See where they live.</p></div>
+      </div>
+      <a href="index.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">All Tools</span></a>
+    </div>
+  </header>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="flex flex-wrap items-center gap-2 mb-5">
+      <label for="fileInput" class="action primary"><i data-lucide="upload" class="w-4 h-4"></i>Upload image</label>
+      <input id="fileInput" type="file" accept="image/*" class="hidden">
+      <button id="sampleBtn" class="action"><i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>New sample</button>
+      <button id="exportBtn" class="action" disabled><i data-lucide="download" class="w-4 h-4"></i>Export PNG</button>
+      <span class="text-xs text-slate-500 sm:ml-auto">Local processing · Images stay in your browser</span>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <section class="lg:col-span-8 min-w-0 flex flex-col gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex bg-slate-950 p-1 rounded-lg"><button id="pinsBtn" class="mode active">Pins & boxes</button><button id="shapesBtn" class="mode">Color regions</button></div>
+          <div class="flex items-center gap-3">
+            <label class="flex items-center gap-2 text-xs text-slate-400">Opacity <input id="opacitySlider" type="range" min="15" max="100" value="85" class="w-20"></label>
+            <button id="visibilityBtn" class="action">Hide overlay</button>
+          </div>
+        </div>
+        <div id="dropZone" class="relative min-h-80 sm:min-h-96 bg-slate-900/60 border-2 border-dashed border-slate-800 rounded-2xl p-3 flex items-center justify-center overflow-hidden">
+          <div id="canvasStage" class="relative overflow-hidden rounded-lg"><canvas id="baseCanvas"></canvas><canvas id="overlayCanvas"></canvas></div>
+          <div id="loading" class="hidden absolute inset-0 bg-slate-950/80 z-10 flex items-center justify-center gap-3 text-sm"><i data-lucide="loader-circle" class="w-5 h-5 animate-spin text-indigo-400"></i>Analyzing colors…</div>
+        </div>
+        <div class="flex items-start justify-between gap-3 text-xs text-slate-400 px-1"><p id="modeDescription">Pins mark the main connected region of each color. Boxes show its trimmed extent. Hover over a color to see its HEX code; select it to highlight.</p><button id="clearBtn" class="hidden text-indigo-400 whitespace-nowrap">Show all</button></div>
+        <p id="imageInfo" class="text-xs text-slate-500 px-1 break-all"></p>
+      </section>
+      <aside class="lg:col-span-4 min-w-0 flex flex-col gap-5">
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5">
+          <h2 class="text-sm font-semibold flex items-center gap-2"><i data-lucide="sliders-horizontal" class="w-4 h-4 text-indigo-400"></i>Extraction settings</h2>
+          <label class="block text-xs text-slate-400"><span class="flex justify-between mb-3"><span>Palette size</span><output id="countLabel" class="text-indigo-300 font-mono">6 colors</output></span><input id="kSlider" type="range" min="2" max="12" value="6" class="w-full"></label>
+          <label class="block text-xs text-slate-400 border-t border-slate-800 pt-4"><span class="flex justify-between mb-3"><span>Region simplification</span><output id="smoothLabel" class="text-slate-300">Medium</output></span><input id="smoothSlider" type="range" min="1" max="5" value="3" class="w-full"></label>
+          <p class="text-xs text-slate-500">Up to 12 representative colors. Transparent pixels are excluded. Simplification affects color regions only.</p>
+        </section>
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div class="flex justify-between items-center gap-2"><h2 class="text-sm font-semibold flex items-center gap-2"><i data-lucide="palette" class="w-4 h-4 text-pink-400"></i>Extracted palette</h2><span id="actualCount" class="text-xs font-mono text-slate-400"></span></div>
+          <div id="proportionBar" class="flex h-3 overflow-hidden rounded-full bg-slate-800"></div>
+          <div class="flex gap-2"><button id="copyHexBtn" class="action flex-1" disabled>Copy HEX</button><button id="copyCssBtn" class="action flex-1" disabled>Copy CSS</button></div>
+          <div id="paletteList" class="flex flex-col gap-2 max-h-[510px] overflow-y-auto"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <div id="toast" role="status" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm shadow-xl"></div>
+  <script>
+    const $ = id => document.getElementById(id);
+    const base = $('baseCanvas');
+    const overlay = $('overlayCanvas');
+    const baseCtx = base.getContext('2d');
+    const ctx = overlay.getContext('2d');
+    const state = { image: null, name: '', k: 6, mode: 'pins', opacity: .85, visible: true, smoothness: 3, selected: null, hovered: null, clusters: [], grid: null, smoothed: null, gw: 0, gh: 0, busy: false };
+    let extractionTimer;
+    let toastTimer;
+    let loadVersion = 0;
+    let sampleIndex = 0;
+    const smoothNames = ['Ultra fine', 'Fine', 'Medium', 'Smooth', 'Bold'];
+    const hex = rgb => '#' + rgb.map(v => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+
+    function toast(message) {
+      clearTimeout(toastTimer);
+      $('toast').textContent = message;
+      $('toast').classList.remove('hidden');
+      toastTimer = setTimeout(() => $('toast').classList.add('hidden'), 3000);
+    }
+
+    async function copy(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const helper = document.createElement('textarea');
+          helper.value = text;
+          helper.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+          document.body.append(helper);
+          helper.select();
+          const copied = document.execCommand('copy');
+          helper.remove();
+          if (!copied) throw new Error('Clipboard unavailable');
+        }
+        toast('Palette copied');
+      } catch { toast('Copy failed. Check your browser clipboard permissions.'); }
+    }
+
+    function setBusy(busy) {
+      state.busy = busy;
+      $('paletteList').inert = busy;
+      $('proportionBar').inert = busy;
+      $('loading').classList.toggle('hidden', !busy);
+      const unavailable = busy || !state.clusters.length;
+      ['exportBtn', 'copyHexBtn', 'copyCssBtn'].forEach(id => $(id).disabled = unavailable);
+    }
+
+    function resetSelection() {
+      state.selected = null;
+      state.hovered = null;
+      state.clusters.forEach(cluster => cluster.hit = null);
+      $('clearBtn').classList.add('hidden');
+    }
+
+    function distance(a, b) {
+      const redMean = (a[0] + b[0]) / 2;
+      return (2 + redMean / 256) * (a[0] - b[0]) ** 2 + 4 * (a[1] - b[1]) ** 2 + (2 + (255 - redMean) / 256) * (a[2] - b[2]) ** 2;
+    }
+
+    function generateSample() {
+      const palettes = [
+        ['#0f172a', '#0d9488', '#a7f3d0', '#1e3a8a', '#0284c7', '#111827', '#f43f5e'],
+        ['#1e293b', '#d97706', '#fde047', '#7c2d12', '#ea580c', '#431407', '#38bdf8'],
+        ['#fef3c7', '#fdba74', '#dc2626', '#15803d', '#065f46', '#9a3412', '#2563eb']
+      ];
+      const p = palettes[sampleIndex++ % palettes.length];
+      const canvas = document.createElement('canvas');
+      canvas.width = 960;
+      canvas.height = 640;
+      const c = canvas.getContext('2d');
+      const gradient = c.createLinearGradient(0, 0, 0, 440);
+      gradient.addColorStop(0, p[0]);
+      gradient.addColorStop(1, p[1]);
+      c.fillStyle = gradient;
+      c.fillRect(0, 0, 960, 640);
+      c.fillStyle = p[2];
+      c.beginPath(); c.arc(680, 175, 78, 0, Math.PI * 2); c.fill();
+      c.fillStyle = p[3];
+      c.beginPath(); c.moveTo(0, 430); c.lineTo(180, 230); c.lineTo(360, 360); c.lineTo(540, 200); c.lineTo(740, 350); c.lineTo(960, 240); c.lineTo(960, 640); c.lineTo(0, 640); c.closePath(); c.fill();
+      c.fillStyle = p[4];
+      c.beginPath(); c.moveTo(0, 390); c.bezierCurveTo(280, 310, 460, 470, 960, 360); c.lineTo(960, 640); c.lineTo(0, 640); c.closePath(); c.fill();
+      c.fillStyle = p[6];
+      c.beginPath(); c.moveTo(210, 470); c.lineTo(295, 290); c.lineTo(340, 470); c.closePath(); c.fill();
+      c.fillStyle = p[5];
+      c.beginPath(); c.moveTo(0, 510); c.bezierCurveTo(340, 440, 620, 560, 960, 465); c.lineTo(960, 640); c.lineTo(0, 640); c.closePath(); c.fill();
+      return canvas;
+    }
+
+    function loadSource(image, name) {
+      state.image = image;
+      state.name = name;
+      resetSelection();
+      state.clusters = [];
+      $('paletteList').replaceChildren();
+      $('proportionBar').replaceChildren();
+      $('actualCount').textContent = '';
+      $('imageInfo').textContent = `${name} · ${image.width} × ${image.height}`;
+      resizeCanvas();
+      scheduleExtraction();
+    }
+
+    async function loadFile(file) {
+      if (!file) return;
+      const version = ++loadVersion;
+      const url = URL.createObjectURL(file);
+      try {
+        const image = new Image();
+        image.src = url;
+        await image.decode();
+        if (version !== loadVersion) return;
+        loadSource(image, file.name);
+      } catch {
+        if (version === loadVersion) toast('Could not open this image. Try PNG, JPEG, or WebP.');
+      } finally { URL.revokeObjectURL(url); }
+    }
+
+    function resizeCanvas() {
+      if (!state.image) return;
+      const image = state.image;
+      const availableWidth = Math.max(1, $('dropZone').clientWidth - 28);
+      const scale = Math.min(availableWidth / image.width, 600 / image.height, 1);
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      $('canvasStage').style.maxWidth = `${width}px`;
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      base.width = overlay.width = Math.max(1, Math.round(width * pixelRatio));
+      base.height = overlay.height = Math.max(1, Math.round(height * pixelRatio));
+      baseCtx.clearRect(0, 0, base.width, base.height);
+      baseCtx.drawImage(image, 0, 0, base.width, base.height);
+      renderOverlay();
+    }
+
+    function scheduleExtraction() {
+      if (!state.image) return;
+      clearTimeout(extractionTimer);
+      resetSelection();
+      setBusy(true);
+      renderOverlay();
+      extractionTimer = setTimeout(() => {
+        try {
+          extract();
+          smoothGrid();
+          renderPalette();
+          renderOverlay();
+          toast(state.clusters.length ? `Extracted ${state.clusters.length} colors` : 'This image has no visible pixels');
+        } catch (error) {
+          console.error(error);
+          state.clusters = [];
+          renderPalette();
+          renderOverlay();
+          toast('Could not analyze this image. Try another file.');
+        } finally {
+          setBusy(false);
+          renderOverlay();
+        }
+      }, 120);
+    }
+
+    function extract() {
+      const image = state.image;
+      const scale = Math.min(150 / image.width, 150 / image.height, 1);
+      const gw = Math.max(1, Math.round(image.width * scale));
+      const gh = Math.max(1, Math.round(image.height * scale));
+      const work = document.createElement('canvas');
+      work.width = gw; work.height = gh;
+      const wctx = work.getContext('2d', { willReadFrequently: true });
+      wctx.drawImage(image, 0, 0, gw, gh);
+      const data = wctx.getImageData(0, 0, gw, gh).data;
+      const pixels = [];
+      const positions = [];
+      const unique = new Set();
+      for (let i = 0; i < gw * gh; i++) {
+        if (data[i * 4 + 3] === 0) continue;
+        const rgb = Array.from(data.subarray(i * 4, i * 4 + 3));
+        pixels.push(rgb);
+        positions.push(i);
+        unique.add(hex(rgb));
+      }
+      state.gw = gw; state.gh = gh;
+      const grid = new Int16Array(gw * gh).fill(-1);
+      state.grid = grid;
+      if (!pixels.length) { state.clusters = []; return; }
+      const k = Math.min(state.k, unique.size);
+      const centroids = [pixels[Math.floor(pixels.length * .37)].slice()];
+      const nearest = new Float64Array(pixels.length).fill(Infinity);
+      for (let c = 1; c < k; c++) {
+        let sum = 0;
+        for (let i = 0; i < pixels.length; i++) {
+          nearest[i] = Math.min(nearest[i], distance(pixels[i], centroids[c - 1]));
+          sum += nearest[i];
+        }
+        if (!sum) break;
+        let target = sum * ((c * .61803398875) % 1);
+        let chosen = pixels.length - 1;
+        for (let i = 0; i < pixels.length; i++) {
+          target -= nearest[i];
+          if (target <= 0 && nearest[i] > 0) { chosen = i; break; }
+        }
+        centroids.push(pixels[chosen].slice());
+      }
+      const labels = new Int16Array(pixels.length).fill(-1);
+      for (let iteration = 0; iteration < 18; iteration++) {
+        const sums = centroids.map(() => [0, 0, 0, 0]);
+        let changed = false;
+        for (let i = 0; i < pixels.length; i++) {
+          let best = 0;
+          let bestDistance = Infinity;
+          centroids.forEach((centroid, c) => {
+            const d = distance(pixels[i], centroid);
+            if (d < bestDistance) { bestDistance = d; best = c; }
+          });
+          if (labels[i] !== best) changed = true;
+          labels[i] = best;
+          for (let channel = 0; channel < 3; channel++) sums[best][channel] += pixels[i][channel];
+          sums[best][3]++;
+        }
+        sums.forEach((sum, c) => {
+          if (sum[3]) centroids[c] = sum.slice(0, 3).map(value => value / sum[3]);
+        });
+        if (!changed) break;
+      }
+      // Merge centroids that round to the same displayed HEX, and discard empty colors.
+      const groups = new Map();
+      const mapping = centroids.map(rgb => {
+        const code = hex(rgb);
+        if (!groups.has(code)) groups.set(code, { rgb: rgb.map(Math.round), hex: code, count: 0, cells: [] });
+        return groups.get(code);
+      });
+      labels.forEach((label, i) => {
+        mapping[label].count++;
+        mapping[label].cells.push(positions[i]);
+      });
+      const clusters = [...groups.values()].filter(cluster => cluster.count).sort((a, b) => b.count - a.count);
+      clusters.forEach((cluster, index) => {
+        cluster.percentage = cluster.count / pixels.length * 100;
+        cluster.cells.forEach(position => grid[position] = index);
+      });
+      state.clusters = clusters;
+      clusters.forEach((cluster, index) => analyzeRegion(cluster, index));
+    }
+
+    function analyzeRegion(cluster, index) {
+      const { gw, gh, grid } = state;
+      const visited = new Uint8Array(grid.length);
+      let largest = [];
+      for (const start of cluster.cells) {
+        if (visited[start]) continue;
+        const component = [start];
+        visited[start] = 1;
+        for (let head = 0; head < component.length; head++) {
+          const cell = component[head];
+          const x = cell % gw;
+          const y = Math.floor(cell / gw);
+          const neighbors = [];
+          if (x > 0) neighbors.push(cell - 1);
+          if (x < gw - 1) neighbors.push(cell + 1);
+          if (y > 0) neighbors.push(cell - gw);
+          if (y < gh - 1) neighbors.push(cell + gw);
+          neighbors.forEach(next => {
+            if (!visited[next] && grid[next] === index) { visited[next] = 1; component.push(next); }
+          });
+        }
+        if (component.length > largest.length) largest = component;
+      }
+      const xs = largest.map(cell => cell % gw).sort((a, b) => a - b);
+      const ys = largest.map(cell => Math.floor(cell / gw)).sort((a, b) => a - b);
+      const low = Math.floor(largest.length * .06);
+      const high = Math.min(largest.length - 1, Math.floor(largest.length * .94));
+      cluster.box = { x: xs[low] / gw, y: ys[low] / gh, w: (xs[high] + 1 - xs[low]) / gw, h: (ys[high] + 1 - ys[low]) / gh };
+      const medianX = xs[Math.floor(xs.length / 2)];
+      const medianY = ys[Math.floor(ys.length / 2)];
+      let bestCell = largest[0];
+      let bestScore = -Infinity;
+      const step = Math.max(1, Math.floor(largest.length / 500));
+      for (let i = 0; i < largest.length; i += step) {
+        const cell = largest[i];
+        const x = cell % gw;
+        const y = Math.floor(cell / gw);
+        let neighbors = 0;
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < gw && ny >= 0 && ny < gh && grid[ny * gw + nx] === index) neighbors++;
+          }
+        }
+        const score = neighbors * 120 - Math.hypot(x - medianX, y - medianY) * 2.5;
+        if (score > bestScore) { bestScore = score; bestCell = cell; }
+      }
+      cluster.pin = { x: (bestCell % gw + .5) / gw, y: (Math.floor(bestCell / gw) + .5) / gh };
+      delete cluster.cells;
+    }
+
+    function smoothGrid() {
+      if (!state.grid) return;
+      let current = state.grid.slice();
+      const { gw, gh, clusters } = state;
+      for (let pass = 0; pass < state.smoothness; pass++) {
+        const next = current.slice();
+        for (let y = 0; y < gh; y++) {
+          for (let x = 0; x < gw; x++) {
+            const cell = y * gw + x;
+            if (current[cell] < 0) continue;
+            const counts = new Uint8Array(clusters.length);
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || nx >= gw || ny < 0 || ny >= gh) continue;
+                const label = current[ny * gw + nx];
+                if (label >= 0) counts[label]++;
+              }
+            }
+            let best = current[cell];
+            counts.forEach((count, label) => { if (count > counts[best]) best = label; });
+            next[cell] = best;
+          }
+        }
+        current = next;
+      }
+      state.smoothed = current;
+    }
+
+    function select(index) {
+      state.selected = state.selected === index ? null : index;
+      state.hovered = null;
+      $('clearBtn').classList.toggle('hidden', state.selected === null);
+      updateSwatchSelection();
+      renderOverlay();
+    }
+
+    function updateSwatchSelection() {
+      [...$('paletteList').children].forEach((row, i) => row.querySelector('.swatch').classList.toggle('selected', state.selected === i));
+    }
+
+    function renderPalette() {
+      $('paletteList').replaceChildren();
+      $('proportionBar').replaceChildren();
+      $('actualCount').textContent = `${state.clusters.length} colors`;
+      state.clusters.forEach((cluster, index) => {
+        const segment = document.createElement('button');
+        segment.style.cssText = `flex:${cluster.count};background:${cluster.hex}`;
+        segment.title = `${cluster.hex} · ${cluster.percentage.toFixed(1)}%`;
+        segment.addEventListener('click', () => select(index));
+        $('proportionBar').append(segment);
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-1';
+        row.innerHTML = `<button class="swatch min-w-0 text-left"><span class="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center text-xs font-bold border border-white/20" style="background:${cluster.hex};color:${contrast(cluster.rgb)}">${index + 1}</span><span class="min-w-0 flex-1"><span class="block text-sm font-mono font-semibold">${cluster.hex}</span><span class="block text-[11px] text-slate-400 font-mono">${cluster.rgb.join(', ')}</span></span><span class="text-xs text-slate-400 font-mono">${cluster.percentage.toFixed(1)}%</span></button><button class="p-2 text-slate-400 hover:text-white rounded-lg" title="Copy ${cluster.hex}"><i data-lucide="copy" class="w-4 h-4"></i></button>`;
+        row.querySelector('.swatch').addEventListener('click', () => select(index));
+        row.lastElementChild.addEventListener('click', () => copy(cluster.hex));
+        row.addEventListener('pointerenter', () => { state.hovered = index; renderOverlay(); });
+        row.addEventListener('pointerleave', () => { state.hovered = null; renderOverlay(); });
+        $('paletteList').append(row);
+      });
+      updateSwatchSelection();
+      lucide.createIcons();
+    }
+
+    function contrast(rgb) {
+      return (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000 >= 145 ? '#0f172a' : '#ffffff';
+    }
+
+    function roundedRect(x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, width, height, radius);
+    }
+
+    function renderOverlay() {
+      const width = overlay.width, height = overlay.height;
+      hideColorTooltip();
+      ctx.clearRect(0, 0, width, height);
+      state.clusters.forEach(cluster => cluster.hit = null);
+      if (!state.visible || !state.clusters.length || state.busy) return;
+      const active = state.selected ?? state.hovered;
+      const ratio = overlay.width / Math.max(1, overlay.getBoundingClientRect().width);
+      ctx.save();
+      ctx.globalAlpha = state.opacity;
+      if (state.mode === 'shapes') drawRegions(width, height, active, ratio);
+      state.clusters.forEach((cluster, index) => {
+        const dimmed = active !== null && active !== index;
+        if (state.mode === 'shapes' && dimmed) return;
+        ctx.save();
+        ctx.globalAlpha = state.opacity * (dimmed ? .18 : 1);
+        const px = cluster.pin.x * width, py = cluster.pin.y * height;
+        if (state.mode === 'pins') drawPin(cluster, index, px, py, width, height, ratio);
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+
+    function drawPin(cluster, index, px, py, width, height, ratio) {
+      const box = cluster.box;
+      const x = box.x * width, y = box.y * height, w = box.w * width, h = box.h * height;
+      ctx.fillStyle = cluster.hex + '19';
+      roundedRect(x, y, w, h, Math.min(8 * ratio, w / 2, h / 2)); ctx.fill();
+      ctx.setLineDash([6 * ratio, 4 * ratio]);
+      ctx.lineWidth = 4 * ratio; ctx.strokeStyle = '#0f172acc'; ctx.stroke();
+      ctx.lineWidth = 1.7 * ratio; ctx.strokeStyle = cluster.hex; ctx.stroke();
+      ctx.setLineDash([]);
+      const radius = 11 * ratio;
+      const headY = Math.max(radius + 2 * ratio, py - 27 * ratio);
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, headY);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 * ratio; ctx.stroke();
+      ctx.beginPath(); ctx.arc(px, py, 4 * ratio, 0, Math.PI * 2); ctx.fillStyle = cluster.hex; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(px, headY, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = contrast(cluster.rgb); ctx.font = `700 ${11 * ratio}px Inter, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(index + 1, px, headY);
+      cluster.hit = { x: px - radius, y: headY - radius, w: radius * 2, h: py + 5 * ratio - (headY - radius) };
+    }
+
+    function drawRegions(width, height, active, ratio) {
+      const { gw, gh, smoothed, clusters } = state;
+      if (!smoothed) return;
+      const region = document.createElement('canvas');
+      region.width = gw; region.height = gh;
+      const rctx = region.getContext('2d');
+      const image = rctx.createImageData(gw, gh);
+      smoothed.forEach((label, i) => {
+        if (label < 0) return;
+        image.data.set(clusters[label].rgb, i * 4);
+        image.data[i * 4 + 3] = active !== null && label !== active ? 28 : 235;
+      });
+      rctx.putImageData(image, 0, 0);
+      // Nearest-neighbor scaling preserves transparent holes and exact region boundaries.
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(region, 0, 0, width, height);
+      ctx.beginPath();
+      for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+          const label = smoothed[y * gw + x];
+          if (label < 0) continue;
+          if (x + 1 < gw) {
+            const neighbor = smoothed[y * gw + x + 1];
+            if (neighbor !== label && (active === null || label === active || neighbor === active)) {
+              ctx.moveTo((x + 1) * width / gw, y * height / gh); ctx.lineTo((x + 1) * width / gw, (y + 1) * height / gh);
+            }
+          }
+          if (y + 1 < gh) {
+            const neighbor = smoothed[(y + 1) * gw + x];
+            if (neighbor !== label && (active === null || label === active || neighbor === active)) {
+              ctx.moveTo(x * width / gw, (y + 1) * height / gh); ctx.lineTo((x + 1) * width / gw, (y + 1) * height / gh);
+            }
+          }
+        }
+      }
+      ctx.strokeStyle = '#0f172aaa'; ctx.lineWidth = 2.5 * ratio; ctx.stroke();
+      ctx.strokeStyle = '#ffffffbb'; ctx.lineWidth = ratio; ctx.stroke();
+    }
+
+    function hitTest(event) {
+      if (!state.visible || state.busy) return null;
+      const rect = overlay.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * overlay.width / rect.width;
+      const y = (event.clientY - rect.top) * overlay.height / rect.height;
+      for (let i = state.clusters.length - 1; i >= 0; i--) {
+        const hit = state.clusters[i].hit;
+        if (hit && x >= hit.x && x <= hit.x + hit.w && y >= hit.y && y <= hit.y + hit.h) return i;
+      }
+      const grid = state.mode === 'shapes' ? state.smoothed : state.grid;
+      if (!grid) return null;
+      const gx = Math.floor(x / overlay.width * state.gw);
+      const gy = Math.floor(y / overlay.height * state.gh);
+      if (gx < 0 || gx >= state.gw || gy < 0 || gy >= state.gh) return null;
+      const label = grid[gy * state.gw + gx];
+      return label < 0 ? null : label;
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      resetSelection();
+      $('pinsBtn').classList.toggle('active', mode === 'pins');
+      $('shapesBtn').classList.toggle('active', mode === 'shapes');
+      $('modeDescription').textContent = mode === 'pins'
+        ? 'Pins mark the main connected region of each color. Boxes show its trimmed extent. Hover over a color to see its HEX code; select it to highlight.'
+        : 'Simplified color regions show the palette across the image. Hover over a region to see its HEX code; select it to highlight.';
+      updateSwatchSelection();
+      renderOverlay();
+    }
+
+    $('pinsBtn').onclick = () => setMode('pins');
+    $('shapesBtn').onclick = () => setMode('shapes');
+    $('opacitySlider').oninput = event => { state.opacity = Number(event.target.value) / 100; renderOverlay(); };
+    $('visibilityBtn').onclick = () => {
+      state.visible = !state.visible;
+      $('visibilityBtn').textContent = state.visible ? 'Hide overlay' : 'Show overlay';
+      overlay.style.pointerEvents = state.visible ? 'auto' : 'none';
+      renderOverlay();
+    };
+    $('kSlider').oninput = event => {
+      state.k = Number(event.target.value);
+      $('countLabel').textContent = `${state.k} colors`;
+      scheduleExtraction();
+    };
+    $('smoothSlider').oninput = event => {
+      state.smoothness = Number(event.target.value);
+      $('smoothLabel').textContent = smoothNames[state.smoothness - 1];
+      smoothGrid(); renderOverlay();
+    };
+    $('clearBtn').onclick = () => { resetSelection(); updateSwatchSelection(); renderOverlay(); };
+    $('copyHexBtn').onclick = () => copy(state.clusters.map(cluster => cluster.hex).join(', '));
+    $('copyCssBtn').onclick = () => copy(':root {\n' + state.clusters.map((cluster, i) => `  --color-${i + 1}: ${cluster.hex};`).join('\n') + '\n}');
+    const colorTooltip = document.createElement('div');
+    colorTooltip.className = 'hidden fixed z-50 pointer-events-none rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-xs font-mono text-white shadow-xl';
+    document.body.append(colorTooltip);
+
+    function hideColorTooltip() {
+      colorTooltip.classList.add('hidden');
+    }
+
+    overlay.addEventListener('pointermove', event => {
+      const index = hitTest(event);
+      overlay.style.cursor = index === null ? 'default' : 'pointer';
+      if (index === null) { hideColorTooltip(); return; }
+      const cluster = state.clusters[index];
+      colorTooltip.textContent = `${cluster.hex} · ${cluster.percentage.toFixed(1)}%`;
+      colorTooltip.classList.remove('hidden');
+      const left = Math.max(8, Math.min(window.innerWidth - colorTooltip.offsetWidth - 8, event.clientX + 14));
+      const top = Math.max(8, Math.min(window.innerHeight - colorTooltip.offsetHeight - 8, event.clientY + 18));
+      colorTooltip.style.left = `${left}px`;
+      colorTooltip.style.top = `${top}px`;
+    });
+    overlay.addEventListener('pointerleave', hideColorTooltip);
+    overlay.addEventListener('pointerdown', hideColorTooltip);
+    window.addEventListener('scroll', hideColorTooltip, true);
+    overlay.addEventListener('click', event => {
+      const index = hitTest(event);
+      if (index !== null) select(index);
+      else { resetSelection(); updateSwatchSelection(); renderOverlay(); }
+    });
+    $('fileInput').onchange = event => { loadFile(event.target.files[0]); event.target.value = ''; };
+    $('sampleBtn').onclick = () => { ++loadVersion; loadSource(generateSample(), 'Sample artwork'); };
+    let dragDepth = 0;
+    $('dropZone').addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; $('dropZone').classList.add('dragging'); });
+    $('dropZone').addEventListener('dragover', event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; });
+    $('dropZone').addEventListener('dragleave', () => { dragDepth--; if (dragDepth <= 0) $('dropZone').classList.remove('dragging'); });
+    $('dropZone').addEventListener('drop', event => {
+      event.preventDefault(); dragDepth = 0; $('dropZone').classList.remove('dragging');
+      loadFile(event.dataTransfer.files[0]);
+    });
+    // Prevent an accidental drop outside the workspace from navigating away.
+    window.addEventListener('dragover', event => event.preventDefault());
+    window.addEventListener('drop', event => event.preventDefault());
+    $('exportBtn').onclick = () => {
+      if (state.busy || !state.image) return;
+      const output = document.createElement('canvas');
+      output.width = base.width; output.height = base.height;
+      const outputCtx = output.getContext('2d');
+      outputCtx.drawImage(base, 0, 0); outputCtx.drawImage(overlay, 0, 0);
+      output.toBlob(blob => {
+        if (!blob) { toast('Could not export this image'); return; }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = `chromamap-${state.mode}-${state.clusters.length}colors.png`; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast('Exported current view as PNG');
+      }, 'image/png');
+    };
+    let resizeTimer;
+    new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resizeCanvas, 80); }).observe($('dropZone'));
+    lucide.createIcons();
+    loadSource(generateSample(), 'Sample artwork');
+  </script>
+</body>
+</html>
