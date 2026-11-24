@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Measure Tool</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Inter Font -->
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter font', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    #osdViewer { background: #0b1120; }
+    .openseadragon-canvas:focus { outline: none; }
+
+    #overlayCanvas.pointer-events-auto { cursor: crosshair; }
+  </style>
+</head>
+<body class="h-full font-sans antialiased bg-slate-950 text-slate-100 flex flex-col">
+
+  <!-- Header Section -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+          <i data-lucide="ruler" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white tracking-tight">Image Measure Tool</h1>
+          <p class="text-xs text-slate-400">Calibrate with a reference line and measure real-world distances on any image.</p>
+        </div>
+      </div>
+      <a href="index.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">All Tools</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Left Column: Image Source & Viewer (8 Cols) -->
+    <section class="lg:col-span-8 flex flex-col space-y-4">
+
+      <!-- Image Source Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center gap-2">
+        <label for="fileInput" class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shadow-sm">
+          <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+          <span>Upload Image</span>
+        </label>
+        <input type="file" id="fileInput" accept="image/*" class="hidden" />
+
+        <button id="sampleBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+          <i data-lucide="image" class="w-3.5 h-3.5"></i>
+          <span>Load Sample</span>
+        </button>
+
+        <div class="flex-1 min-w-[220px] flex items-center gap-1.5">
+          <div class="relative flex-1">
+            <i data-lucide="link" class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+            <input type="text" id="urlInput" placeholder="Paste or type an image URL, then press Enter"
+              class="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg pl-8 pr-2 py-1.5 focus:outline-none focus:border-indigo-500" />
+          </div>
+          <button id="loadUrlBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+            Load
+          </button>
+        </div>
+
+        <span class="text-[10px] text-slate-500 w-full sm:w-auto">Tip: paste an image (Ctrl/Cmd+V) anywhere on this page to load it directly.</span>
+      </div>
+
+      <!-- Viewer Toolbar -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2 flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <button id="panModeBtn" title="Pan &amp; Zoom (1)" class="tool-mode-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border">
+            <i data-lucide="hand" class="w-3.5 h-3.5"></i>
+            <span>Pan</span>
+          </button>
+          <button id="refModeBtn" title="Draw Reference Line (2)" disabled class="tool-mode-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="scaling" class="w-3.5 h-3.5"></i>
+            <span>Reference Line</span>
+          </button>
+          <button id="measureModeBtn" title="Draw Measurement Line (3)" disabled class="tool-mode-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="ruler" class="w-3.5 h-3.5"></i>
+            <span>Measure</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button id="zoomOutBtn" title="Zoom out" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+            <i data-lucide="zoom-out" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="zoomInBtn" title="Zoom in" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+            <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="resetViewBtn" title="Fit to screen" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+            <i data-lucide="maximize" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Viewer Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col flex-1 shadow-lg relative">
+        <div id="viewerContainer" class="relative flex-1 min-h-[420px] sm:min-h-[540px] select-none">
+          <div id="osdViewer" class="absolute inset-0"></div>
+          <canvas id="overlayCanvas" class="absolute inset-0 pointer-events-none"></canvas>
+
+          <!-- Empty State -->
+          <div id="emptyState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center p-6 pointer-events-none">
+            <i data-lucide="image-off" class="w-10 h-10 text-slate-700 mb-2"></i>
+            <p class="text-sm font-semibold text-slate-400">No image loaded</p>
+            <p class="text-xs text-slate-600 mt-1">Upload, drop, paste, or load a sample image to get started.</p>
+          </div>
+
+          <!-- Drop Overlay Prompt -->
+          <div id="dropPrompt" class="hidden absolute inset-0 bg-indigo-950/80 backdrop-blur-sm border-2 border-dashed border-indigo-400 rounded-xl flex flex-col items-center justify-center text-center p-6 z-20">
+            <i data-lucide="file-up" class="w-12 h-12 text-indigo-300 mb-2 animate-bounce"></i>
+            <p class="text-base font-semibold text-white">Drop your image here</p>
+            <p class="text-xs text-indigo-200 mt-1">Supports PNG, JPG, WEBP, SVG</p>
+          </div>
+        </div>
+
+        <!-- Footbar instruction -->
+        <div class="px-4 py-2 border-t border-slate-800 bg-slate-900/60 flex items-center justify-between text-xs text-slate-400 gap-2">
+          <span id="modeHint" class="flex items-center gap-1.5">
+            <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-indigo-400"></i>
+            <span>Drag to pan, scroll to zoom.</span>
+          </span>
+          <span id="imageDimensions" class="font-mono text-[11px] text-slate-500 hidden sm:inline shrink-0"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Calibration & Measurements (4 Cols) -->
+    <section class="lg:col-span-4 flex flex-col space-y-4">
+
+      <!-- Step 1: Reference Calibration Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            1. Reference Calibration
+          </h2>
+          <span id="calibStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+            Not set
+          </span>
+        </div>
+
+        <div class="grid grid-cols-12 gap-2">
+          <div class="col-span-7">
+            <label for="refLengthInput" class="block text-[11px] text-slate-400 mb-1">Baseline length</label>
+            <input type="number" id="refLengthInput" min="0.0001" step="any" value="1500" placeholder="e.g. 1500"
+              class="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs font-mono rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div class="col-span-5">
+            <label for="unitSelect" class="block text-[11px] text-slate-400 mb-1">Unit</label>
+            <select id="unitSelect"
+              class="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500">
+              <option value="mm" selected>mm</option>
+              <option value="cm">cm</option>
+              <option value="m">m</option>
+              <option value="in">in</option>
+              <option value="ft">ft</option>
+              <option value="custom">custom…</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="customUnitRow" class="hidden">
+          <label for="customUnitInput" class="block text-[11px] text-slate-400 mb-1">Custom unit label</label>
+          <input type="text" id="customUnitInput" placeholder="e.g. µm, pt, studs" maxlength="16"
+            class="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500" />
+        </div>
+
+        <div class="bg-slate-950/70 border border-slate-800 rounded-lg p-2.5 text-xs space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Reference span</span>
+            <span id="refPxValue" class="font-mono text-slate-300">—</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Scale ratio</span>
+            <span id="scaleRatioValue" class="font-mono text-amber-300">—</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="drawRefQuickBtn" disabled
+            class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="scaling" class="w-3.5 h-3.5"></i>
+            <span id="drawRefQuickLabel">Draw Reference Line</span>
+          </button>
+          <button id="clearRefBtn" title="Clear reference line" disabled
+            class="inline-flex items-center justify-center p-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Measurements Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3 flex-1 flex flex-col">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+            2. Measurements
+            <span id="measureCountBadge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">0</span>
+          </h2>
+          <div class="flex items-center gap-1.5">
+            <button id="copyAllBtn" title="Copy all measurements" disabled
+              class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+              <i data-lucide="copy" class="w-3 h-3"></i>
+              <span>Copy</span>
+            </button>
+            <button id="clearMeasuresBtn" title="Clear all measurements" disabled
+              class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+              <i data-lucide="eraser" class="w-3 h-3"></i>
+              <span>Clear</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="measureEmpty" class="flex-1 flex flex-col items-center justify-center text-center py-8 px-3 border border-dashed border-slate-800 rounded-lg">
+          <i data-lucide="ruler" class="w-7 h-7 text-slate-700 mb-2"></i>
+          <p class="text-xs font-medium text-slate-400">No measurements yet</p>
+          <p class="text-[11px] text-slate-500 mt-1">Select <span class="text-sky-400 font-medium">Measure</span> and drag across any feature on the image.</p>
+        </div>
+
+        <div id="measureList" class="hidden space-y-2 max-h-[300px] overflow-y-auto pr-1"></div>
+
+        <div id="measureTotalRow" class="hidden pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+          <span class="text-slate-400">Total length</span>
+          <span id="measureTotalValue" class="font-mono font-semibold text-sky-300">—</span>
+        </div>
+      </div>
+
+      <!-- Tips Card -->
+      <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs text-slate-400 space-y-1.5">
+        <h3 class="text-slate-300 font-semibold flex items-center gap-1.5">
+          <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span>Tips</span>
+        </h3>
+        <ul class="list-disc list-inside space-y-1 text-[11px] text-slate-400">
+          <li>Scroll to zoom in closely before placing line endpoints for sub-pixel precision.</li>
+          <li>Drag any endpoint handle to fine-tune an existing reference or measurement line.</li>
+          <li>Hold <kbd class="px-1 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">Shift</kbd> while drawing to snap to 0°, 45°, or 90°.</li>
+          <li>Shortcuts: <kbd class="px-1 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">1</kbd> Pan, <kbd class="px-1 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">2</kbd> Reference, <kbd class="px-1 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">3</kbd> Measure.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <script type="module">
+    import OpenSeadragon from 'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/+esm';
+
+    // ---- State ----
+    let viewer = null;
+    let imageLoaded = false;
+    let currentObjectUrl = null;
+    let mode = 'pan'; // 'pan' | 'reference' | 'measure'
+
+    // Lines stored in image pixel coordinates: { id, label, p1: {x,y}, p2: {x,y} }
+    let referenceLine = null;
+    let measurements = [];
+    let nextMeasureNum = 1;
+    let selectedMeasureId = null;
+
+    // Active interaction state (viewer-element coordinates while drawing, or handle drag)
+    let activeDrag = null;
+    // activeDrag = { kind: 'new-ref' | 'new-measure' | 'edit-handle', targetId, handleKey: 'p1'|'p2', startImgPt, currentImgPt }
+
+    // ---- DOM refs ----
+    const viewerContainer = document.getElementById('viewerContainer');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const emptyState = document.getElementById('emptyState');
+    const dropPrompt = document.getElementById('dropPrompt');
+    const urlInput = document.getElementById('urlInput');
+    const modeHint = document.getElementById('modeHint');
+    const imageDimensions = document.getElementById('imageDimensions');
+
+    const refLengthInput = document.getElementById('refLengthInput');
+    const unitSelect = document.getElementById('unitSelect');
+    const customUnitRow = document.getElementById('customUnitRow');
+    const customUnitInput = document.getElementById('customUnitInput');
+    const calibStatusBadge = document.getElementById('calibStatusBadge');
+    const refPxValue = document.getElementById('refPxValue');
+    const scaleRatioValue = document.getElementById('scaleRatioValue');
+    const drawRefQuickBtn = document.getElementById('drawRefQuickBtn');
+    const drawRefQuickLabel = document.getElementById('drawRefQuickLabel');
+    const clearRefBtn = document.getElementById('clearRefBtn');
+
+    const measureCountBadge = document.getElementById('measureCountBadge');
+    const measureEmpty = document.getElementById('measureEmpty');
+    const measureList = document.getElementById('measureList');
+    const measureTotalRow = document.getElementById('measureTotalRow');
+    const measureTotalValue = document.getElementById('measureTotalValue');
+    const copyAllBtn = document.getElementById('copyAllBtn');
+    const clearMeasuresBtn = document.getElementById('clearMeasuresBtn');
+
+    const modeButtons = {
+      pan: document.getElementById('panModeBtn'),
+      reference: document.getElementById('refModeBtn'),
+      measure: document.getElementById('measureModeBtn'),
+    };
+
+    const modeHints = {
+      pan: 'Drag to pan, scroll to zoom.',
+      reference: 'Drag across a known-length object to set the reference scale. Scroll to zoom.',
+      measure: 'Drag to measure any distance. Drag endpoints to adjust. Scroll to zoom.',
+    };
+
+    const ACTIVE_CLASSES = {
+      pan: 'border-indigo-500 bg-indigo-600/20 text-indigo-300',
+      reference: 'border-amber-500 bg-amber-500/20 text-amber-300',
+      measure: 'border-sky-500 bg-sky-500/20 text-sky-300',
+    };
+    const INACTIVE_CLASS = 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700';
+
+    // ---- Calibration helpers ----
+    function getUnit() {
+      if (unitSelect.value === 'custom') {
+        return customUnitInput.value.trim() || 'u';
+      }
+      return unitSelect.value;
+    }
+
+    function getBaselineLength() {
+      const val = parseFloat(refLengthInput.value);
+      return Number.isFinite(val) && val > 0 ? val : null;
+    }
+
+    function linePixelLength(line) {
+      if (!line) return 0;
+      return Math.hypot(line.p2.x - line.p1.x, line.p2.y - line.p1.y);
+    }
+
+    function lineAngleDeg(line) {
+      const dy = line.p2.y - line.p1.y;
+      const dx = line.p2.x - line.p1.x;
+      return (Math.atan2(dy, dx) * 180) / Math.PI;
+    }
+
+    function getUnitsPerPixel() {
+      if (!referenceLine) return null;
+      const px = linePixelLength(referenceLine);
+      const baseline = getBaselineLength();
+      if (px <= 0 || !baseline) return null;
+      return baseline / px;
+    }
+
+    function formatMeasure(pxLen) {
+      const ratio = getUnitsPerPixel();
+      if (!ratio) return `${pxLen.toFixed(1)} px`;
+      const val = pxLen * ratio;
+      const abs = Math.abs(val);
+      const decimals = abs >= 1000 ? 1 : abs >= 10 ? 2 : abs >= 1 ? 3 : 4;
+      return `${val.toFixed(decimals)} ${getUnit()}`;
+    }
+
+    function updateCalibrationUI() {
+      const baseline = getBaselineLength();
+      const unit = getUnit();
+      const px = referenceLine ? linePixelLength(referenceLine) : 0;
+
+      if (referenceLine && px > 0 && baseline) {
+        const pxPerUnit = px / baseline;
+        const unitPerPx = baseline / px;
+        calibStatusBadge.textContent = 'Calibrated';
+        calibStatusBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30';
+        refPxValue.textContent = `${px.toFixed(2)} px`;
+        scaleRatioValue.textContent = `${pxPerUnit.toFixed(3)} px/${unit} (${unitPerPx.toFixed(4)} ${unit}/px)`;
+        drawRefQuickLabel.textContent = 'Redraw Reference';
+      } else if (referenceLine && px > 0) {
+        calibStatusBadge.textContent = 'Enter length';
+        calibStatusBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30';
+        refPxValue.textContent = `${px.toFixed(2)} px`;
+        scaleRatioValue.textContent = 'Enter valid baseline > 0';
+        drawRefQuickLabel.textContent = 'Redraw Reference';
+      } else {
+        calibStatusBadge.textContent = 'Not set';
+        calibStatusBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700';
+        refPxValue.textContent = '—';
+        scaleRatioValue.textContent = '—';
+        drawRefQuickLabel.textContent = 'Draw Reference Line';
+      }
+
+      clearRefBtn.disabled = !referenceLine;
+      drawRefQuickBtn.disabled = !imageLoaded;
+    }
+
+    function updateMeasurementsUI() {
+      measureCountBadge.textContent = String(measurements.length);
+      const hasAny = measurements.length > 0;
+      measureEmpty.classList.toggle('hidden', hasAny);
+      measureList.classList.toggle('hidden', !hasAny);
+      measureTotalRow.classList.toggle('hidden', measurements.length < 2);
+      copyAllBtn.disabled = !hasAny;
+      clearMeasuresBtn.disabled = !hasAny;
+
+      if (!hasAny) {
+        measureList.innerHTML = '';
+        return;
+      }
+
+      let totalPx = 0;
+      measureList.innerHTML = measurements.map((m, idx) => {
+        const px = linePixelLength(m);
+        totalPx += px;
+        const formatted = formatMeasure(px);
+        const angle = lineAngleDeg(m).toFixed(1);
+        const isSelected = m.id === selectedMeasureId;
+        return `
+          <div data-id="${m.id}" class="measure-row group rounded-lg border p-2.5 transition cursor-pointer ${isSelected ? 'bg-sky-500/10 border-sky-500/50' : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'}">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">#${idx + 1}</span>
+                <input type="text" data-rename-id="${m.id}" value="${escapeAttr(m.label)}" placeholder="Label"
+                  class="bg-transparent text-xs font-medium text-slate-200 focus:outline-none focus:bg-slate-900 rounded px-1 py-0.5 w-24 truncate border border-transparent focus:border-slate-700" />
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
+                <span class="text-sm font-mono font-bold text-white">${formatted}</span>
+                <button data-copy-id="${m.id}" title="Copy measurement" class="p-1 text-slate-500 hover:text-slate-200 rounded transition">
+                  <i data-lucide="copy" class="w-3 h-3"></i>
+                </button>
+                <button data-delete-id="${m.id}" title="Delete line" class="p-1 text-slate-500 hover:text-rose-400 rounded transition">
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+            <div class="mt-1 flex items-center justify-between text-[10px] font-mono text-slate-500">
+              <span>${px.toFixed(1)} px</span>
+              <span>${angle}°</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      measureTotalValue.textContent = formatMeasure(totalPx);
+      lucide.createIcons();
+    }
+
+    function escapeAttr(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ---- Viewer Init ----
+    function initViewer() {
+      viewer = OpenSeadragon({
+        element: document.getElementById('osdViewer'),
+        showNavigationControl: false,
+        gestureSettingsMouse: { clickToZoom: false, scrollToZoom: true, flickEnabled: true },
+        visibilityRatio: 1,
+        minZoomImageRatio: 0.8,
+        maxZoomPixelRatio: 10,
+        springStiffness: 15,
+        animationTime: 0.4,
+        zoomPerScroll: 1.4,
+        zoomPerClick: 1.5,
+      });
+      viewer.addHandler('open', () => {
+        resizeOverlayCanvas();
+        redrawOverlay();
+      });
+      viewer.addHandler('update-viewport', redrawOverlay);
+    }
+
+    function setMode(newMode) {
+      if ((newMode === 'reference' || newMode === 'measure') && !imageLoaded) return;
+      mode = newMode;
+      Object.entries(modeButtons).forEach(([key, btn]) => {
+        const cls = key === mode ? ACTIVE_CLASSES[key] : INACTIVE_CLASS;
+        btn.className = `tool-mode-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border disabled:opacity-40 disabled:cursor-not-allowed ${cls}`;
+      });
+      modeHint.querySelector('span').textContent = modeHints[mode];
+
+      if (mode === 'pan') {
+        viewer.setMouseNavEnabled(true);
+        overlayCanvas.classList.remove('pointer-events-auto');
+        overlayCanvas.classList.add('pointer-events-none');
+      } else {
+        viewer.setMouseNavEnabled(false);
+        overlayCanvas.classList.remove('pointer-events-none');
+        overlayCanvas.classList.add('pointer-events-auto');
+      }
+      redrawOverlay();
+    }
+
+    function updateToolAvailability() {
+      modeButtons.reference.disabled = !imageLoaded;
+      modeButtons.measure.disabled = !imageLoaded;
+      drawRefQuickBtn.disabled = !imageLoaded;
+    }
+
+    function updateEmptyState() {
+      emptyState.classList.toggle('hidden', imageLoaded);
+    }
+
+    // ---- Coordinate Helpers ----
+    function viewerToImage(pt) {
+      const p = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(pt.x, pt.y));
+      return { x: p.x, y: p.y };
+    }
+
+    function imageToViewer(pt) {
+      const p = viewer.viewport.imageToViewerElementCoordinates(new OpenSeadragon.Point(pt.x, pt.y));
+      return { x: p.x, y: p.y };
+    }
+
+    function snapAngle(p1, p2) {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy);
+      if (len === 0) return p2;
+      const angle = Math.atan2(dy, dx);
+      const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+      return {
+        x: p1.x + len * Math.cos(snapped),
+        y: p1.y + len * Math.sin(snapped),
+      };
+    }
+
+    // ---- Overlay Sizing & Drawing ----
+    function resizeOverlayCanvas() {
+      const rect = viewerContainer.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      overlayCanvas.width = Math.max(1, Math.round(rect.width * dpr));
+      overlayCanvas.height = Math.max(1, Math.round(rect.height * dpr));
+      overlayCanvas.style.width = rect.width + 'px';
+      overlayCanvas.style.height = rect.height + 'px';
+      overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function redrawOverlay() {
+      const rect = viewerContainer.getBoundingClientRect();
+      overlayCtx.clearRect(0, 0, rect.width, rect.height);
+      if (!imageLoaded || viewer.world.getItemCount() === 0) return;
+
+      // Draw finalized reference line
+      if (referenceLine && !(activeDrag && activeDrag.kind === 'new-ref')) {
+        const baseline = getBaselineLength();
+        const label = baseline
+          ? `REF: ${baseline} ${getUnit()}`
+          : `REF: ${linePixelLength(referenceLine).toFixed(1)} px`;
+        drawLine(referenceLine, {
+          color: '#f59e0b',
+          label,
+          showHandles: mode !== 'pan',
+          selected: false,
+        });
+      }
+
+      // Draw finalized measurements
+      measurements.forEach((m, idx) => {
+        const px = linePixelLength(m);
+        const prefix = m.label ? `${m.label}: ` : `#${idx + 1}: `;
+        drawLine(m, {
+          color: m.id === selectedMeasureId ? '#38bdf8' : '#818cf8',
+          label: prefix + formatMeasure(px),
+          showHandles: mode !== 'pan',
+          selected: m.id === selectedMeasureId,
+        });
+      });
+
+      // Draw active drag preview
+      if (activeDrag && (activeDrag.kind === 'new-ref' || activeDrag.kind === 'new-measure')) {
+        const preview = { p1: activeDrag.startImgPt, p2: activeDrag.currentImgPt };
+        const px = linePixelLength(preview);
+        const isRef = activeDrag.kind === 'new-ref';
+        const label = isRef
+          ? `REF: ${px.toFixed(1)} px`
+          : formatMeasure(px);
+        drawLine(preview, {
+          color: isRef ? '#fbbf24' : '#38bdf8',
+          label,
+          showHandles: true,
+          selected: true,
+        });
+      }
+    }
+
+    function drawLine(imgLine, opts) {
+      const v1 = imageToViewer(imgLine.p1);
+      const v2 = imageToViewer(imgLine.p2);
+      const dx = v2.x - v1.x;
+      const dy = v2.y - v1.y;
+      const screenLen = Math.hypot(dx, dy);
+
+      overlayCtx.save();
+
+      // Subtle dark halo for contrast on bright images
+      overlayCtx.lineCap = 'round';
+      overlayCtx.strokeStyle = 'rgba(2, 6, 23, 0.75)';
+      overlayCtx.lineWidth = opts.selected ? 5 : 4;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(v1.x, v1.y);
+      overlayCtx.lineTo(v2.x, v2.y);
+      overlayCtx.stroke();
+
+      // Main colored line
+      overlayCtx.strokeStyle = opts.color;
+      overlayCtx.lineWidth = opts.selected ? 2.5 : 2;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(v1.x, v1.y);
+      overlayCtx.lineTo(v2.x, v2.y);
+      overlayCtx.stroke();
+
+      // Perpendicular end ticks
+      if (screenLen > 4) {
+        const nx = -dy / screenLen;
+        const ny = dx / screenLen;
+        const tick = 6;
+        overlayCtx.lineWidth = 1.75;
+        [v1, v2].forEach(v => {
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(v.x - nx * tick, v.y - ny * tick);
+          overlayCtx.lineTo(v.x + nx * tick, v.y + ny * tick);
+          overlayCtx.stroke();
+        });
+      }
+
+      // Endpoint handles
+      [v1, v2].forEach(v => {
+        overlayCtx.beginPath();
+        overlayCtx.arc(v.x, v.y, opts.showHandles ? 4.5 : 3, 0, Math.PI * 2);
+        overlayCtx.fillStyle = '#0f172a';
+        overlayCtx.fill();
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeStyle = opts.color;
+        overlayCtx.stroke();
+      });
+
+      // Pill label at midpoint
+      if (screenLen > 12 && opts.label) {
+        const mx = (v1.x + v2.x) / 2;
+        const my = (v1.y + v2.y) / 2;
+        overlayCtx.font = '600 11px Inter, ui-sans-serif, system-ui, sans-serif';
+        const textWidth = overlayCtx.measureText(opts.label).width;
+        const padX = 7;
+        const boxW = textWidth + padX * 2;
+        const boxH = 20;
+        const offsetY = -16;
+
+        const rx = mx - boxW / 2;
+        const ry = my + offsetY - boxH / 2;
+
+        overlayCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        overlayCtx.strokeStyle = opts.color;
+        overlayCtx.lineWidth = 1;
+        roundRect(overlayCtx, rx, ry, boxW, boxH, 6);
+        overlayCtx.fill();
+        overlayCtx.stroke();
+
+        overlayCtx.fillStyle = '#f8fafc';
+        overlayCtx.textAlign = 'center';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(opts.label, mx, my + offsetY + 0.5);
+      }
+
+      overlayCtx.restore();
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    // ---- Hit-testing for endpoint handles ----
+    function findHandleAt(viewerPt, radiusPx = 10) {
+      const r2 = radiusPx * radiusPx;
+      const candidates = [];
+      if (referenceLine) candidates.push({ kind: 'ref', id: 'ref', line: referenceLine });
+      for (let i = measurements.length - 1; i >= 0; i--) {
+        candidates.push({ kind: 'measure', id: measurements[i].id, line: measurements[i] });
+      }
+      for (const c of candidates) {
+        for (const key of ['p1', 'p2']) {
+          const vp = imageToViewer(c.line[key]);
+          const dx = vp.x - viewerPt.x;
+          const dy = vp.y - viewerPt.y;
+          if (dx * dx + dy * dy <= r2) {
+            return { kind: c.kind, id: c.id, handleKey: key, line: c.line };
+          }
+        }
+      }
+      return null;
+    }
+
+    // ---- Pointer & Wheel Interaction ----
+    function getViewerPt(e) {
+      const rect = overlayCanvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    function onPointerDown(e) {
+      if (mode === 'pan' || !imageLoaded || e.button !== 0) return;
+      const vPt = getViewerPt(e);
+      const hit = findHandleAt(vPt);
+
+      overlayCanvas.setPointerCapture(e.pointerId);
+
+      if (hit) {
+        if (hit.kind === 'measure') {
+          selectedMeasureId = hit.id;
+          updateMeasurementsUI();
+        }
+        const anchorKey = hit.handleKey === 'p1' ? 'p2' : 'p1';
+        activeDrag = {
+          kind: 'edit-handle',
+          targetKind: hit.kind,
+          targetId: hit.id,
+          handleKey: hit.handleKey,
+          anchorImgPt: { ...hit.line[anchorKey] },
+          line: hit.line,
+        };
+        redrawOverlay();
+        return;
+      }
+
+      const imgPt = viewerToImage(vPt);
+      activeDrag = {
+        kind: mode === 'reference' ? 'new-ref' : 'new-measure',
+        startImgPt: imgPt,
+        currentImgPt: imgPt,
+      };
+      redrawOverlay();
+    }
+
+    function onPointerMove(e) {
+      const vPt = getViewerPt(e);
+
+      if (!activeDrag) {
+        if (mode !== 'pan' && imageLoaded) {
+          const hit = findHandleAt(vPt);
+          overlayCanvas.style.cursor = hit ? 'grab' : 'crosshair';
+        }
+        return;
+      }
+
+      let imgPt = viewerToImage(vPt);
+
+      if (activeDrag.kind === 'edit-handle') {
+        if (e.shiftKey) {
+          imgPt = snapAngle(activeDrag.anchorImgPt, imgPt);
+        }
+        activeDrag.line[activeDrag.handleKey] = imgPt;
+        overlayCanvas.style.cursor = 'grabbing';
+        redrawOverlay();
+        if (activeDrag.targetKind === 'ref') {
+          updateCalibrationUI();
+        }
+        updateMeasurementsUI();
+      } else {
+        if (e.shiftKey) {
+          imgPt = snapAngle(activeDrag.startImgPt, imgPt);
+        }
+        activeDrag.currentImgPt = imgPt;
+        redrawOverlay();
+      }
+    }
+
+    function onPointerUp(e) {
+      if (!activeDrag) return;
+      if (overlayCanvas.hasPointerCapture(e.pointerId)) {
+        overlayCanvas.releasePointerCapture(e.pointerId);
+      }
+      overlayCanvas.style.cursor = 'crosshair';
+
+      if (activeDrag.kind === 'new-ref') {
+        const len = Math.hypot(
+          activeDrag.currentImgPt.x - activeDrag.startImgPt.x,
+          activeDrag.currentImgPt.y - activeDrag.startImgPt.y
+        );
+        if (len >= 2) {
+          referenceLine = {
+            p1: activeDrag.startImgPt,
+            p2: activeDrag.currentImgPt,
+          };
+          updateCalibrationUI();
+          updateMeasurementsUI();
+          showToast('Reference line set. Now switch to Measure or adjust baseline length.', 'success');
+        }
+      } else if (activeDrag.kind === 'new-measure') {
+        const len = Math.hypot(
+          activeDrag.currentImgPt.x - activeDrag.startImgPt.x,
+          activeDrag.currentImgPt.y - activeDrag.startImgPt.y
+        );
+        if (len >= 2) {
+          const id = 'm_' + Date.now() + '_' + nextMeasureNum;
+          const m = {
+            id,
+            label: `Line ${nextMeasureNum}`,
+            p1: activeDrag.startImgPt,
+            p2: activeDrag.currentImgPt,
+          };
+          nextMeasureNum++;
+          measurements.push(m);
+          selectedMeasureId = id;
+          updateMeasurementsUI();
+        }
+      }
+
+      activeDrag = null;
+      redrawOverlay();
+    }
+
+    function onOverlayWheel(e) {
+      if (!imageLoaded || !viewer) return;
+      e.preventDefault();
+      const vPt = getViewerPt(e);
+      const viewportPt = viewer.viewport.viewerElementToViewportCoordinates(new OpenSeadragon.Point(vPt.x, vPt.y));
+      const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+      viewer.viewport.zoomBy(factor, viewportPt);
+      viewer.viewport.applyConstraints();
+    }
+
+    // ---- Image Loading ----
+    function loadImageEl(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('load failed'));
+        img.src = url;
+      });
+    }
+
+    async function handleNewImageSource(url) {
+      try {
+        const img = await loadImageEl(url);
+        imageLoaded = true;
+        referenceLine = null;
+        measurements = [];
+        nextMeasureNum = 1;
+        selectedMeasureId = null;
+
+        imageDimensions.textContent = `${img.naturalWidth} × ${img.naturalHeight} px`;
+
+        const prevUrl = currentObjectUrl;
+        currentObjectUrl = url.startsWith('blob:') ? url : null;
+
+        viewer.open({ type: 'image', url });
+
+        if (prevUrl && prevUrl !== url) {
+          URL.revokeObjectURL(prevUrl);
+        }
+
+        updateEmptyState();
+        updateToolAvailability();
+        updateCalibrationUI();
+        updateMeasurementsUI();
+        redrawOverlay();
+      } catch (e) {
+        showToast('Could not load that image. Check the URL or file and try again.', 'error');
+      }
+    }
+
+    function loadImageFile(file) {
+      if (!file.type.startsWith('image/')) {
+        showToast('Please choose a valid image file', 'error');
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      handleNewImageSource(url);
+    }
+
+    function loadFromUrlInput() {
+      const val = urlInput.value.trim();
+      if (!val) return;
+      handleNewImageSource(val);
+    }
+
+    function generateSampleImage() {
+      const c = document.createElement('canvas');
+      c.width = 1600;
+      c.height = 1000;
+      const ctx = c.getContext('2d');
+
+      // Desk mat background
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, c.width, c.height);
+
+      // Subtle grid
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= c.width; x += 50) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, c.height); ctx.stroke();
+      }
+      for (let y = 0; y <= c.height; y += 50) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(c.width, y); ctx.stroke();
+      }
+
+      // Title
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 34px Inter, sans-serif';
+      ctx.fillText('Calibration Sample — Reference Phone (1500 mm) + Target Item', 80, 75);
+
+      // Reference Phone (1500 mm tall = 600 px => 0.4 px/mm)
+      const px = 220, py = 200, pw = 286, ph = 600;
+      ctx.fillStyle = '#1e293b';
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 4;
+      roundRect(ctx, px, py, pw, ph, 36);
+      ctx.fill();
+      ctx.stroke();
+
+      // Screen
+      ctx.fillStyle = '#020617';
+      roundRect(ctx, px + 14, py + 14, pw - 28, ph - 28, 26);
+      ctx.fill();
+
+      // Dynamic Island
+      ctx.fillStyle = '#1e293b';
+      roundRect(ctx, px + pw / 2 - 42, py + 28, 84, 22, 11);
+      ctx.fill();
+
+      // Phone label
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 24px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('iPhone 18 Pro', px + pw / 2, py + ph / 2 - 14);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 20px monospace';
+      ctx.fillText('Height: 1500 mm', px + pw / 2, py + ph / 2 + 22);
+
+      // Dimension guide ticks next to phone
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(px - 40, py); ctx.lineTo(px, py);
+      ctx.moveTo(px - 40, py + ph); ctx.lineTo(px, py + ph);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Target Item (e.g. Mechanical Keyboard / Gadget: 320 px x 200 px => 80 mm x 50 mm)
+      const ix = 760, iy = 320, iw = 520, ih = 320;
+      ctx.fillStyle = '#1e1b4b';
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 4;
+      roundRect(ctx, ix, iy, iw, ih, 20);
+      ctx.fill();
+      ctx.stroke();
+
+      // Inner details
+      ctx.fillStyle = '#312e81';
+      roundRect(ctx, ix + 24, iy + 24, iw - 48, ih - 48, 12);
+      ctx.fill();
+
+      ctx.fillStyle = '#e0e7ff';
+      ctx.font = 'bold 26px Inter, sans-serif';
+      ctx.fillText('Target Item', ix + iw / 2, iy + ih / 2 - 12);
+      ctx.fillStyle = '#a5b4fc';
+      ctx.font = '18px Inter, sans-serif';
+      ctx.fillText('Draw Reference along phone, then Measure here', ix + iw / 2, iy + ih / 2 + 22);
+
+      ctx.textAlign = 'left';
+      return c.toDataURL();
+    }
+
+    function loadSample() {
+      handleNewImageSource(generateSampleImage());
+    }
+
+    // ---- Toasts ----
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const bgClass = type === 'success' ? 'bg-emerald-900/90 border-emerald-500 text-emerald-100' :
+                      type === 'error' ? 'bg-rose-900/90 border-rose-500 text-rose-100' :
+                      type === 'warning' ? 'bg-amber-900/90 border-amber-500 text-amber-100' :
+                      'bg-indigo-900/90 border-indigo-500 text-indigo-100';
+      const iconName = type === 'success' ? 'check-circle' : type === 'error' ? 'alert-triangle' : type === 'warning' ? 'alert-triangle' : 'info';
+
+      toast.className = `pointer-events-auto flex items-center gap-2 px-3.5 py-2.5 rounded-xl border backdrop-blur text-xs font-medium shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 max-w-xs ${bgClass}`;
+      toast.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 flex-shrink-0"></i> <span>${message}</span>`;
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // ---- Wiring ----
+    function wireEvents() {
+      overlayCanvas.style.touchAction = 'none';
+      overlayCanvas.addEventListener('pointerdown', onPointerDown);
+      overlayCanvas.addEventListener('pointermove', onPointerMove);
+      overlayCanvas.addEventListener('pointerup', onPointerUp);
+      overlayCanvas.addEventListener('pointercancel', onPointerUp);
+      overlayCanvas.addEventListener('wheel', onOverlayWheel, { passive: false });
+
+      modeButtons.pan.addEventListener('click', () => setMode('pan'));
+      modeButtons.reference.addEventListener('click', () => setMode('reference'));
+      modeButtons.measure.addEventListener('click', () => setMode('measure'));
+      drawRefQuickBtn.addEventListener('click', () => setMode('reference'));
+
+      clearRefBtn.addEventListener('click', () => {
+        referenceLine = null;
+        updateCalibrationUI();
+        updateMeasurementsUI();
+        redrawOverlay();
+      });
+
+      refLengthInput.addEventListener('input', () => {
+        updateCalibrationUI();
+        updateMeasurementsUI();
+        redrawOverlay();
+      });
+
+      unitSelect.addEventListener('change', () => {
+        customUnitRow.classList.toggle('hidden', unitSelect.value !== 'custom');
+        updateCalibrationUI();
+        updateMeasurementsUI();
+        redrawOverlay();
+      });
+
+      customUnitInput.addEventListener('input', () => {
+        updateCalibrationUI();
+        updateMeasurementsUI();
+        redrawOverlay();
+      });
+
+      measureList.addEventListener('click', async (e) => {
+        const delBtn = e.target.closest('[data-delete-id]');
+        if (delBtn) {
+          const id = delBtn.getAttribute('data-delete-id');
+          measurements = measurements.filter(m => m.id !== id);
+          if (selectedMeasureId === id) selectedMeasureId = null;
+          updateMeasurementsUI();
+          redrawOverlay();
+          return;
+        }
+        const copyBtn = e.target.closest('[data-copy-id]');
+        if (copyBtn) {
+          const id = copyBtn.getAttribute('data-copy-id');
+          const m = measurements.find(x => x.id === id);
+          if (m) {
+            const txt = formatMeasure(linePixelLength(m));
+            try {
+              await navigator.clipboard.writeText(txt);
+              showToast(`Copied ${txt}`, 'success');
+            } catch {
+              showToast('Could not copy to clipboard', 'error');
+            }
+          }
+          return;
+        }
+        const row = e.target.closest('.measure-row');
+        if (row && !e.target.matches('input')) {
+          selectedMeasureId = row.getAttribute('data-id');
+          updateMeasurementsUI();
+          redrawOverlay();
+        }
+      });
+
+      measureList.addEventListener('input', (e) => {
+        const id = e.target.getAttribute('data-rename-id');
+        if (!id) return;
+        const m = measurements.find(x => x.id === id);
+        if (m) {
+          m.label = e.target.value;
+          redrawOverlay();
+        }
+      });
+
+      copyAllBtn.addEventListener('click', async () => {
+        if (!measurements.length) return;
+        const lines = measurements.map((m, idx) => {
+          const px = linePixelLength(m);
+          const name = m.label || `Line ${idx + 1}`;
+          return `${name}: ${formatMeasure(px)} (${px.toFixed(1)} px)`;
+        });
+        try {
+          await navigator.clipboard.writeText(lines.join('\n'));
+          showToast('Copied all measurements', 'success');
+        } catch {
+          showToast('Could not copy to clipboard', 'error');
+        }
+      });
+
+      clearMeasuresBtn.addEventListener('click', () => {
+        measurements = [];
+        selectedMeasureId = null;
+        nextMeasureNum = 1;
+        updateMeasurementsUI();
+        redrawOverlay();
+      });
+
+      document.getElementById('zoomInBtn').addEventListener('click', () => {
+        viewer.viewport.zoomBy(1.6);
+        viewer.viewport.applyConstraints();
+      });
+      document.getElementById('zoomOutBtn').addEventListener('click', () => {
+        viewer.viewport.zoomBy(1 / 1.6);
+        viewer.viewport.applyConstraints();
+      });
+      document.getElementById('resetViewBtn').addEventListener('click', () => viewer.viewport.goHome());
+
+      document.getElementById('fileInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) loadImageFile(file);
+        e.target.value = '';
+      });
+
+      document.getElementById('sampleBtn').addEventListener('click', loadSample);
+      document.getElementById('loadUrlBtn').addEventListener('click', loadFromUrlInput);
+      urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadFromUrlInput(); });
+
+      viewerContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropPrompt.classList.remove('hidden');
+      });
+      viewerContainer.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropPrompt.classList.add('hidden');
+      });
+      viewerContainer.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropPrompt.classList.add('hidden');
+        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) loadImageFile(file);
+      });
+
+      document.addEventListener('paste', (e) => {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (items) {
+          for (const item of items) {
+            if (item.type && item.type.startsWith('image/')) {
+              const file = item.getAsFile();
+              if (file) {
+                loadImageFile(file);
+                e.preventDefault();
+                return;
+              }
+            }
+          }
+        }
+        const text = e.clipboardData && e.clipboardData.getData('text/plain');
+        if (text && /^(https?:\/\/|data:image\/)/i.test(text.trim()) && document.activeElement !== urlInput) {
+          urlInput.value = text.trim();
+          handleNewImageSource(text.trim());
+          e.preventDefault();
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        const tag = document.activeElement && document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (e.key === '1') setMode('pan');
+        else if (e.key === '2') setMode('reference');
+        else if (e.key === '3') setMode('measure');
+        else if (e.key === 'Escape') {
+          activeDrag = null;
+          setMode('pan');
+        } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedMeasureId) {
+          measurements = measurements.filter(m => m.id !== selectedMeasureId);
+          selectedMeasureId = null;
+          updateMeasurementsUI();
+          redrawOverlay();
+        }
+      });
+
+      const ro = new ResizeObserver(() => {
+        resizeOverlayCanvas();
+        redrawOverlay();
+      });
+      ro.observe(viewerContainer);
+    }
+
+    // ---- Boot ----
+    lucide.createIcons();
+    initViewer();
+    setMode('pan');
+    updateToolAvailability();
+    updateEmptyState();
+    updateCalibrationUI();
+    updateMeasurementsUI();
+    resizeOverlayCanvas();
+    wireEvents();
+    loadSample();
+  </script>
+</body>
+</html>
