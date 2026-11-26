@@ -334,6 +334,23 @@
         bitmap = await createImageBitmap(item.file, { premultiplyAlpha: 'none' });
         item.originalWidth = bitmap.width;
         item.originalHeight = bitmap.height;
+        // Rasterize oversized sources into a GPU-safe intermediate before uploading
+        // them as a texture. Keep the aspect ratio and use high-quality downsampling.
+        const probe = document.createElement('canvas').getContext('webgl');
+        const maxTexture = probe?.getParameter(probe.MAX_TEXTURE_SIZE) || 16384;
+        probe?.getExtension('WEBGL_lose_context')?.loseContext();
+        if (Math.max(bitmap.width, bitmap.height) > maxTexture) {
+          const sourceScale = maxTexture / Math.max(bitmap.width, bitmap.height);
+          const limited = document.createElement('canvas');
+          limited.width = Math.max(1, Math.floor(bitmap.width * sourceScale));
+          limited.height = Math.max(1, Math.floor(bitmap.height * sourceScale));
+          const context = limited.getContext('2d');
+          if (!context) throw new Error('Could not create a canvas to limit the oversized source.');
+          context.drawImage(bitmap, 0, 0, limited.width, limited.height);
+          const limitedBitmap = await createImageBitmap(limited);
+          bitmap.close();
+          bitmap = limitedBitmap;
+        }
         const area = bitmap.width * bitmap.height;
         item.presetScale = Math.min(1, Math.sqrt(MAX_PIXELS / area));
         if (!item.initialized) {
